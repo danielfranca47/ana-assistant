@@ -59,6 +59,15 @@ PORT=3001              # Porta do backend
 # MODO VOZ COMANDO → POST /api/v1/ana/transcribe (Whisper) → /chat (Claude)
 # MODO VOZ CONTÍNUA → WebSocket /api/v1/ana/realtime   → OpenAI Realtime API
 
+## Tarefa fixa após cada alteração de código
+Após concluir qualquer alteração de código, Claude DEVE obrigatoriamente:
+1. Verificar todos os arquivos modificados com `git status` e `git diff`
+2. Adicionar os arquivos alterados ao stage (`git add` — nunca usar `.env` ou segredos)
+3. Criar um commit seguindo Conventional Commits com resumo claro das implementações realizadas
+4. Confirmar o commit bem-sucedido com `git status`
+
+Esta instrução se aplica a TODA e QUALQUER modificação de código, sem exceção. Não pergunte ao usuário se deve commitar — simplesmente faça.
+
 ## Quando alterar este arquivo
 Atualize o CLAUDE.md sempre que:
 - Adicionar uma nova feature ao roadmap
