@@ -1,0 +1,118 @@
+// Configuração do banco de dados PostgreSQL com Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enumerações de prioridade e status das tarefas
+enum TaskPriority {
+  alta
+  media
+  baixa
+}
+
+enum TaskStatus {
+  pending
+  done
+  current
+  late
+}
+
+// Enumeração de status das metas
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
+
+// Usuário — base de autenticação e proprietário de todos os dados
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks        Task[]
+  events       Event[]
+  goals        Goal[]
+  dailyReports DailyReport[]
+}
+
+// Tarefa — atividade da rotina diária com horário, duração e categoria
+model Task {
+  id        String       @id @default(cuid())
+  name      String
+  time      String?      // HH:MM — null = tarefa sem horário fixo
+  duration  Int?         // duração em minutos
+  priority  TaskPriority @default(media)
+  category  String?
+  status    TaskStatus   @default(pending)
+  date      DateTime     @db.Date
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Enumeração de categoria dos eventos
+enum EventCategory {
+  work
+  meet
+  pers
+  break
+}
+
+// Evento — agendamento no calendário com data, horário e categoria
+model Event {
+  id        String        @id @default(cuid())
+  name      String
+  date      DateTime      @db.Date
+  startTime String?       // HH:MM
+  endTime   String?       // HH:MM
+  category  EventCategory @default(pers)
+  notes     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Meta — objetivo de médio ou longo prazo com data alvo opcional
+model Goal {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      GoalStatus @default(ACTIVE)
+  targetDate  DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Relatório diário — resumo e análise gerada pela Ana para um dia específico
+model DailyReport {
+  id         String   @id @default(cuid())
+  date       DateTime @db.Date
+  summary    String?
+  aiAnalysis String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Garante apenas um relatório por usuário por dia
+  @@unique([userId, date])
+}
