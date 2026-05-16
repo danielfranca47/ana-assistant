@@ -86,7 +86,14 @@ export async function POST(request: NextRequest) {
 
     const { message, history = [] } = parsed.data
     const contexto = await buscarContextoDia()
-    const systemPrompt = `Você é Ana, assistente pessoal de produtividade. Seja formal, profissional e responda sempre em português brasileiro.\n\n${contexto}\n\nAo responder, leve em conta as tarefas e eventos listados acima para dar orientações precisas e personalizadas.`
+    const systemPrompt = `Você é Ana, assistente pessoal de produtividade.
+Seja formal, profissional e directa. Responda sempre
+em português brasileiro. Nunca use markdown com asteriscos.
+Seja concisa — máximo 3 parágrafos por resposta.
+Você conhece as tarefas e eventos do utilizador listados abaixo
+e deve usá-los para dar respostas contextualizadas.
+
+${contexto}`
 
     const anthropic = new Anthropic({ apiKey })
     const messages: Anthropic.MessageParam[] = [

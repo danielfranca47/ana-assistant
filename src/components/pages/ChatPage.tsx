@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { sendMessage } from '@/services/chat'
 import * as anaService from '@/services/ana'
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder'
 import ConversationMode from '@/components/ConversationMode'
@@ -43,12 +44,12 @@ export default function ChatPage() {
     setErro(null)
 
     try {
-      const reply = await anaService.chat(textoTrimado, historico)
+      const reply = await sendMessage(textoTrimado, historico)
       const resposta: Mensagem = { role: 'assistant', content: reply }
       setHistorico([...novoHistorico, resposta])
       falarTexto(reply)
-    } catch {
-      setErro('Não foi possível obter resposta da Ana. Tente novamente.')
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não foi possível obter resposta da Ana. Tente novamente.')
     } finally {
       setCarregando(false)
     }
@@ -153,8 +154,10 @@ export default function ChatPage() {
 
         {isProcessing && (
           <div className="flex justify-start">
-            <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-sm px-4 py-2.5">
-              <span className="text-gray-400 text-sm">Ana está digitando...</span>
+            <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1">
+              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
             </div>
           </div>
         )}
