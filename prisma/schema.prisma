@@ -80,3 +80,16 @@ model DailyReport {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
+
+model UserPreferences {
+  id            String   @id @default(cuid())
+  workStart     String   @default("08:00")
+  workEnd       String   @default("18:00")
+  lunchStart    String   @default("12:00")
+  lunchEnd      String   @default("13:00")
+  focusTime     String   @default("morning")
+  breakInterval Int      @default(60)
+  offDays       String   @default("6,0")
+  goalsJson     String   @default("[]")
+  updatedAt     DateTime @updatedAt
+}

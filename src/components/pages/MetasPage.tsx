@@ -1,49 +1,95 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+const DIA_NUMS    = [1, 2, 3, 4, 5, 6, 0] // índice de DIAS_SEMANA → número do dia (0=Dom)
 
-const METAS_INICIAIS = [
-  { nome: 'Finalizar projecto X', pct: 72 },
-  { nome: 'Reuniões ≤ 10h/sem', pct: 55 },
-  { nome: 'Bloco de foco diário', pct: 80 },
-  { nome: 'Relatório diário', pct: 40 },
-]
+interface Prefs {
+  workStart:     string
+  workEnd:       string
+  lunchStart:    string
+  lunchEnd:      string
+  focusTime:     string
+  offDays:       string
+}
+
+interface Meta {
+  id:        string
+  name:      string
+  targetPct: number
+}
+
+const PREFS_DEFAULT: Prefs = {
+  workStart:  '08:00',
+  workEnd:    '18:00',
+  lunchStart: '12:00',
+  lunchEnd:   '13:00',
+  focusTime:  'morning',
+  offDays:    '6,0',
+}
+
+function offDaysParaNomes(offDays: string): string[] {
+  const nums = offDays.split(',').map((n) => n.trim()).filter(Boolean)
+  return DIAS_SEMANA.filter((_, i) => nums.includes(String(DIA_NUMS[i])))
+}
+
+function nomesParaOffDays(nomes: string[]): string {
+  return DIAS_SEMANA
+    .map((nome, i) => (nomes.includes(nome) ? String(DIA_NUMS[i]) : null))
+    .filter(Boolean)
+    .join(',')
+}
+
+function focusParaNomes(focusTime: string): string[] {
+  const parts = focusTime.split(',')
+  const r: string[] = []
+  if (parts.includes('morning'))   r.push('Manhã')
+  if (parts.includes('afternoon')) r.push('Tarde')
+  return r
+}
+
+function nomesParaFocus(nomes: string[]): string {
+  const parts: string[] = []
+  if (nomes.includes('Manhã')) parts.push('morning')
+  if (nomes.includes('Tarde')) parts.push('afternoon')
+  return parts.join(',') || 'morning'
+}
 
 const cardStyle: React.CSSProperties = {
-  background: 'var(--ana-surface)',
-  border: '0.5px solid var(--ana-border)',
+  background:   'var(--ana-surface)',
+  border:       '0.5px solid var(--ana-border)',
   borderRadius: 'var(--ana-radius)',
-  padding: 18,
+  padding:      18,
 }
 
 const cardTitleStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-cormorant), serif',
-  fontSize: 15,
-  fontWeight: 600,
-  color: 'var(--ana-text)',
+  fontFamily:  'var(--font-cormorant), serif',
+  fontSize:    15,
+  fontWeight:  600,
+  color:       'var(--ana-text)',
   marginBottom: 14,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 7,
+  display:     'flex',
+  alignItems:  'center',
+  gap:         7,
 }
 
 const rowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
+  display:        'flex',
+  alignItems:     'center',
   justifyContent: 'space-between',
-  padding: '7px 0',
-  borderBottom: '0.5px solid var(--ana-border)',
-  fontSize: 12,
+  padding:        '7px 0',
+  borderBottom:   '0.5px solid var(--ana-border)',
+  fontSize:       12,
 }
 
 const labelStyle: React.CSSProperties = { color: 'var(--ana-muted)' }
-const valStyle: React.CSSProperties = { color: 'var(--ana-text)', fontWeight: 500 }
+const valStyle:   React.CSSProperties = { color: 'var(--ana-text)', fontWeight: 500 }
 
 function Toggle({ options, active, onChange }: {
-  options: string[]
-  active: string[]
+  options:  string[]
+  active:   string[]
   onChange: (opt: string) => void
 }) {
   return (
@@ -55,14 +101,14 @@ function Toggle({ options, active, onChange }: {
             key={opt}
             onClick={() => onChange(opt)}
             style={{
-              padding: '3px 8px',
+              padding:     '3px 8px',
               borderRadius: 4,
-              fontSize: 11,
-              border: `0.5px solid ${isActive ? 'var(--ana-accent)' : 'var(--ana-border)'}`,
-              background: isActive ? 'var(--ana-accent)' : 'transparent',
-              color: isActive ? 'white' : 'var(--ana-muted)',
-              cursor: 'pointer',
-              fontFamily: 'var(--font-dm-sans), sans-serif',
+              fontSize:    11,
+              border:      `0.5px solid ${isActive ? 'var(--ana-accent)' : 'var(--ana-border)'}`,
+              background:  isActive ? 'var(--ana-accent)' : 'transparent',
+              color:       isActive ? 'white' : 'var(--ana-muted)',
+              cursor:      'pointer',
+              fontFamily:  'var(--font-dm-sans), sans-serif',
             }}
           >
             {opt}
@@ -73,19 +119,139 @@ function Toggle({ options, active, onChange }: {
   )
 }
 
-export default function MetasPage() {
-  const [diasFolga, setDiasFolga] = useState(['Sáb', 'Dom'])
-  const [focoTurno, setFocoTurno] = useState(['Manhã'])
-  const [notificacoes, setNotificacoes] = useState(['Activas'])
-  const [checkIn, setCheckIn] = useState(['Sex tarde'])
+const timeInputStyle: React.CSSProperties = {
+  background:   'transparent',
+  border:       '0.5px solid var(--ana-border)',
+  borderRadius: 4,
+  padding:      '2px 6px',
+  fontSize:     12,
+  color:        'var(--ana-text)',
+  fontFamily:   'var(--font-dm-sans), sans-serif',
+  width:        90,
+}
 
-  function toggle(current: string[], opt: string): string[] {
+export default function MetasPage() {
+  const [prefs, setPrefs]         = useState<Prefs>(PREFS_DEFAULT)
+  const [metas, setMetas]         = useState<Meta[]>([])
+  const [carregando, setCarregando] = useState(true)
+  const [guardado, setGuardado]   = useState(false)
+  const [novaMetaNome, setNovaMetaNome] = useState('')
+  const [adicionando, setAdicionando]   = useState(false)
+  const [notificacoes, setNotificacoes] = useState(['Activas'])
+  const [checkIn, setCheckIn]           = useState(['Sex tarde'])
+
+  const saveTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const guardadoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    Promise.all([
+      apiFetch.get<Prefs>('/api/preferences'),
+      apiFetch.get<Meta[]>('/api/goals'),
+    ]).then(([resPrefs, resMetas]) => {
+      if (resPrefs.data) {
+        setPrefs({
+          workStart:  resPrefs.data.workStart,
+          workEnd:    resPrefs.data.workEnd,
+          lunchStart: resPrefs.data.lunchStart,
+          lunchEnd:   resPrefs.data.lunchEnd,
+          focusTime:  resPrefs.data.focusTime,
+          offDays:    resPrefs.data.offDays,
+        })
+      }
+      if (resMetas.data) setMetas(resMetas.data)
+    }).finally(() => setCarregando(false))
+  }, [])
+
+  const agendarGuardar = useCallback((delta: Partial<Prefs>) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(async () => {
+      const res = await apiFetch.patch('/api/preferences', delta)
+      if (res.data !== null) {
+        if (guardadoTimerRef.current) clearTimeout(guardadoTimerRef.current)
+        setGuardado(true)
+        guardadoTimerRef.current = setTimeout(() => setGuardado(false), 2000)
+      }
+    }, 800)
+  }, [])
+
+  function alterarPrefs(delta: Partial<Prefs>) {
+    const novo = { ...prefs, ...delta }
+    setPrefs(novo)
+    agendarGuardar(delta)
+  }
+
+  function toggleDia(opt: string) {
+    const nomes = offDaysParaNomes(prefs.offDays)
+    const novosNomes = nomes.includes(opt) ? nomes.filter((x) => x !== opt) : [...nomes, opt]
+    alterarPrefs({ offDays: nomesParaOffDays(novosNomes) })
+  }
+
+  function toggleFoco(opt: string) {
+    const nomes = focusParaNomes(prefs.focusTime)
+    const novosNomes = nomes.includes(opt) ? nomes.filter((x) => x !== opt) : [...nomes, opt]
+    alterarPrefs({ focusTime: nomesParaFocus(novosNomes) })
+  }
+
+  async function adicionarMeta() {
+    const nome = novaMetaNome.trim()
+    if (!nome) return
+    setAdicionando(true)
+    const res = await apiFetch.post<Meta>('/api/goals', { name: nome, targetPct: 0 })
+    if (res.data) {
+      setMetas((prev) => [...prev, res.data!])
+      setNovaMetaNome('')
+    }
+    setAdicionando(false)
+  }
+
+  async function actualizarPct(id: string, pct: number) {
+    const val = Math.max(0, Math.min(100, pct))
+    setMetas((prev) => prev.map((m) => (m.id === id ? { ...m, targetPct: val } : m)))
+    await apiFetch.patch(`/api/goals/${id}`, { targetPct: val })
+  }
+
+  async function removerMeta(id: string) {
+    setMetas((prev) => prev.filter((m) => m.id !== id))
+    await apiFetch.delete(`/api/goals/${id}`)
+  }
+
+  function toggleLocal(current: string[], opt: string): string[] {
     return current.includes(opt) ? current.filter((x) => x !== opt) : [...current, opt]
+  }
+
+  if (carregando) {
+    return (
+      <div className="flex items-center justify-center h-full" style={{ background: 'var(--ana-bg)' }}>
+        <span style={{ color: 'var(--ana-muted)', fontSize: 13 }}>A carregar preferências...</span>
+      </div>
+    )
   }
 
   return (
     <div className="overflow-y-auto h-full" style={{ background: 'var(--ana-bg)' }}>
       <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px 24px' }}>
+
+        {/* Banner "Guardado" */}
+        {guardado && (
+          <div style={{
+            display:        'flex',
+            alignItems:     'center',
+            gap:            6,
+            background:     'var(--ana-surface)',
+            border:         '0.5px solid var(--ana-accent)',
+            borderRadius:   'var(--ana-radius)',
+            padding:        '6px 12px',
+            marginBottom:   12,
+            fontSize:       12,
+            color:          'var(--ana-accent)',
+          }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            Guardado
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
 
           {/* Card: Preferências de horário */}
@@ -97,32 +263,56 @@ export default function MetasPage() {
               </svg>
               Preferências de horário
             </h3>
-            <div style={{ ...rowStyle }}>
+            <div style={rowStyle}>
               <span style={labelStyle}>Início do trabalho</span>
-              <span style={valStyle}>08h00</span>
+              <input
+                type="time"
+                value={prefs.workStart}
+                onChange={(e) => alterarPrefs({ workStart: e.target.value })}
+                style={timeInputStyle}
+              />
             </div>
             <div style={rowStyle}>
               <span style={labelStyle}>Fim do trabalho</span>
-              <span style={valStyle}>18h00</span>
+              <input
+                type="time"
+                value={prefs.workEnd}
+                onChange={(e) => alterarPrefs({ workEnd: e.target.value })}
+                style={timeInputStyle}
+              />
             </div>
             <div style={rowStyle}>
-              <span style={labelStyle}>Almoço</span>
-              <span style={valStyle}>12h00 – 13h00</span>
+              <span style={labelStyle}>Início almoço</span>
+              <input
+                type="time"
+                value={prefs.lunchStart}
+                onChange={(e) => alterarPrefs({ lunchStart: e.target.value })}
+                style={timeInputStyle}
+              />
             </div>
-            <div style={{ ...rowStyle }}>
+            <div style={rowStyle}>
+              <span style={labelStyle}>Fim almoço</span>
+              <input
+                type="time"
+                value={prefs.lunchEnd}
+                onChange={(e) => alterarPrefs({ lunchEnd: e.target.value })}
+                style={timeInputStyle}
+              />
+            </div>
+            <div style={rowStyle}>
               <span style={labelStyle}>Dias de folga</span>
               <Toggle
                 options={DIAS_SEMANA}
-                active={diasFolga}
-                onChange={(opt) => setDiasFolga(toggle(diasFolga, opt))}
+                active={offDaysParaNomes(prefs.offDays)}
+                onChange={toggleDia}
               />
             </div>
             <div style={{ ...rowStyle, borderBottom: 'none' }}>
               <span style={labelStyle}>Foco profundo</span>
               <Toggle
                 options={['Manhã', 'Tarde']}
-                active={focoTurno}
-                onChange={(opt) => setFocoTurno(toggle(focoTurno, opt))}
+                active={focusParaNomes(prefs.focusTime)}
+                onChange={toggleFoco}
               />
             </div>
           </div>
@@ -138,31 +328,100 @@ export default function MetasPage() {
               Metas semanais
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {METAS_INICIAIS.map((meta) => (
-                <div key={meta.nome} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 12, color: 'var(--ana-text)', flex: 1 }}>{meta.nome}</span>
-                  <div style={{ width: 80, height: 5, background: 'var(--ana-border)', borderRadius: 3, overflow: 'hidden', flexShrink: 0 }}>
-                    <div style={{ width: `${meta.pct}%`, height: '100%', background: 'var(--ana-accent)', borderRadius: 3 }} />
+              {metas.length === 0 && (
+                <p style={{ fontSize: 12, color: 'var(--ana-muted)', textAlign: 'center', padding: '12px 0' }}>
+                  Sem metas. Adicione abaixo.
+                </p>
+              )}
+              {metas.map((meta) => (
+                <div key={meta.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 12, color: 'var(--ana-text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {meta.name}
+                  </span>
+                  <div style={{ width: 60, height: 5, background: 'var(--ana-border)', borderRadius: 3, overflow: 'hidden', flexShrink: 0 }}>
+                    <div style={{ width: `${meta.targetPct}%`, height: '100%', background: 'var(--ana-accent)', borderRadius: 3 }} />
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--ana-muted)', width: 30, textAlign: 'right', flexShrink: 0 }}>{meta.pct}%</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={meta.targetPct}
+                    onChange={(e) => actualizarPct(meta.id, Number(e.target.value))}
+                    style={{
+                      width:        42,
+                      fontSize:     11,
+                      color:        'var(--ana-muted)',
+                      background:   'transparent',
+                      border:       '0.5px solid var(--ana-border)',
+                      borderRadius: 4,
+                      padding:      '1px 4px',
+                      textAlign:    'right',
+                      flexShrink:   0,
+                      fontFamily:   'var(--font-dm-sans), sans-serif',
+                    }}
+                  />
+                  <span style={{ fontSize: 10, color: 'var(--ana-muted)', flexShrink: 0 }}>%</span>
+                  <button
+                    onClick={() => removerMeta(meta.id)}
+                    title="Remover meta"
+                    style={{
+                      background: 'none',
+                      border:     'none',
+                      cursor:     'pointer',
+                      color:      'var(--ana-muted)',
+                      padding:    '2px',
+                      lineHeight: 1,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
                 </div>
               ))}
             </div>
-            <button style={{
-              width: '100%',
-              marginTop: 14,
-              padding: '8px',
-              background: 'var(--ana-accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: 'pointer',
-              fontFamily: 'var(--font-dm-sans), sans-serif',
-            }}>
-              + Adicionar meta
-            </button>
+
+            {/* Input inline para nova meta */}
+            <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
+              <input
+                type="text"
+                placeholder="Nome da meta..."
+                value={novaMetaNome}
+                onChange={(e) => setNovaMetaNome(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') adicionarMeta() }}
+                style={{
+                  flex:         1,
+                  fontSize:     12,
+                  background:   'transparent',
+                  border:       '0.5px solid var(--ana-border)',
+                  borderRadius: 6,
+                  padding:      '5px 8px',
+                  color:        'var(--ana-text)',
+                  fontFamily:   'var(--font-dm-sans), sans-serif',
+                  outline:      'none',
+                }}
+              />
+              <button
+                onClick={adicionarMeta}
+                disabled={adicionando || !novaMetaNome.trim()}
+                style={{
+                  padding:      '5px 12px',
+                  background:   'var(--ana-accent)',
+                  color:        'white',
+                  border:       'none',
+                  borderRadius: 6,
+                  fontSize:     12,
+                  fontWeight:   500,
+                  cursor:       'pointer',
+                  fontFamily:   'var(--font-dm-sans), sans-serif',
+                  opacity:      adicionando || !novaMetaNome.trim() ? 0.5 : 1,
+                }}
+              >
+                + Adicionar
+              </button>
+            </div>
           </div>
 
           {/* Card: Estilo de trabalho */}
@@ -222,10 +481,11 @@ export default function MetasPage() {
               <Toggle
                 options={['Sex tarde']}
                 active={checkIn}
-                onChange={(opt) => setCheckIn(toggle(checkIn, opt))}
+                onChange={(opt) => setCheckIn(toggleLocal(checkIn, opt))}
               />
             </div>
           </div>
+
         </div>
       </div>
     </div>

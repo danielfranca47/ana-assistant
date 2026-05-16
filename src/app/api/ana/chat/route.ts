@@ -29,7 +29,7 @@ async function buscarContextoDia(): Promise<string> {
   const proximosSete = new Date(inicioHoje)
   proximosSete.setUTCDate(proximosSete.getUTCDate() + 7)
 
-  const [tarefas, eventos] = await Promise.all([
+  const [tarefas, eventos, prefs] = await Promise.all([
     prisma.task.findMany({
       where: { date: { gte: inicioHoje, lt: fimHoje } },
       orderBy: [{ time: 'asc' }, { createdAt: 'asc' }],
@@ -38,6 +38,7 @@ async function buscarContextoDia(): Promise<string> {
       where: { date: { gte: inicioHoje, lt: proximosSete } },
       orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
     }),
+    prisma.userPreferences.findFirst(),
   ])
 
   const linhasTarefas =
@@ -68,7 +69,18 @@ async function buscarContextoDia(): Promise<string> {
           })
           .join('\n')
 
-  return `## Tarefas de hoje (${hojeStr}):\n${linhasTarefas}\n\n## Eventos dos próximos 7 dias:\n${linhasEventos}`
+  let linhasPrefs = ''
+  if (prefs) {
+    const focoLabel =
+      prefs.focusTime === 'morning,afternoon' || prefs.focusTime === 'afternoon,morning'
+        ? 'manhã e tarde'
+        : prefs.focusTime === 'afternoon'
+          ? 'tarde'
+          : 'manhã'
+    linhasPrefs = `\n\n## Preferências do utilizador:\nTrabalho das ${prefs.workStart} às ${prefs.workEnd}, almoço das ${prefs.lunchStart} às ${prefs.lunchEnd}. Foco profundo de ${focoLabel}. Folga nos dias ${prefs.offDays} (0=Dom, 1=Seg, ..., 6=Sáb).`
+  }
+
+  return `## Tarefas de hoje (${hojeStr}):\n${linhasTarefas}\n\n## Eventos dos próximos 7 dias:\n${linhasEventos}${linhasPrefs}`
 }
 
 export async function POST(request: NextRequest) {

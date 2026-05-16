@@ -16,19 +16,19 @@ const SILENCE_DURATION_MS = 1500
 const MIN_RECORDING_MS = 400 // evita disparar silêncio antes do usuário falar
 
 const STATUS_LABEL: Record<Phase, string> = {
-  idle: 'Iniciando...',
-  ready: 'Ana está pronta — pode falar',
-  listening: 'Ouvindo...',
-  processing: 'Processando...',
-  speaking: 'Ana está respondendo...',
+  idle:       'Iniciando...',
+  ready:      'Ana está pronta — pode falar',
+  listening:  'A ouvir...',
+  processing: 'A processar...',
+  speaking:   'Ana a responder...',
 }
 
 const STATUS_COLOR: Record<Phase, string> = {
-  idle: 'bg-gray-500',
-  ready: 'bg-green-400 animate-pulse',
-  listening: 'bg-blue-400 animate-pulse',
+  idle:       'bg-gray-500',
+  ready:      'bg-green-400 animate-pulse',
+  listening:  'bg-green-400 animate-pulse',
   processing: 'bg-amber-400',
-  speaking: 'bg-purple-400 animate-pulse',
+  speaking:   'bg-blue-400 animate-pulse',
 }
 
 interface Props {

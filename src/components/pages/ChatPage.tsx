@@ -62,6 +62,7 @@ export default function ChatPage() {
       try {
         const transcript = await anaService.transcribe(blob)
         if (transcript.trim()) {
+          setInput(transcript)
           await enviarMensagem(transcript)
         }
       } catch {
