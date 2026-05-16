@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { DM_Sans, Cormorant_Garamond } from 'next/font/google'
+import { Toaster } from 'sonner'
 import { dbInit } from '@/lib/db-init'
 import AppShell from '@/components/AppShell'
 import './globals.css'
@@ -30,6 +31,7 @@ export default async function RootLayout({
     <html lang="pt-BR">
       <body className={`${dmSans.variable} ${cormorant.variable} antialiased`}>
         <AppShell>{children}</AppShell>
+        <Toaster richColors position="bottom-right" />
       </body>
     </html>
   )

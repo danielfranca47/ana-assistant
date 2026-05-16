@@ -1,93 +1,84 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import { tasksApi } from '@/services/tasks'
 import type { Task, CreateTaskInput, UpdateTaskInput } from '@/types/task'
 
-const TASKS_EVENT = 'tasks-changed'
-
-export function useTasksQuery(date: string) {
-  const [data, setData] = useState<Task[] | undefined>(undefined)
+export function useTasks(date: string) {
+  const [tasks, setTasks] = useState<Task[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isError, setIsError] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isMutating, setIsMutating] = useState(false)
 
   const load = useCallback(async () => {
     setIsLoading(true)
-    setIsError(false)
+    setError(null)
     const result = await tasksApi.listar(date)
     if (result.data !== null) {
-      setData(result.data)
+      setTasks(result.data)
     } else {
-      setIsError(true)
+      setError(result.error)
     }
     setIsLoading(false)
   }, [date])
 
   useEffect(() => {
     void load()
-    window.addEventListener(TASKS_EVENT, load)
-    return () => window.removeEventListener(TASKS_EVENT, load)
   }, [load])
 
-  return { data, isLoading, isError }
-}
-
-function dispararRefetch() {
-  window.dispatchEvent(new Event(TASKS_EVENT))
-}
-
-export function useCreateTask() {
-  const [isPending, setIsPending] = useState(false)
-
-  const mutateAsync = async (dados: CreateTaskInput): Promise<Task> => {
-    setIsPending(true)
+  async function createTask(dados: CreateTaskInput): Promise<void> {
+    const tempId = `temp-${Date.now()}`
+    const tempTask: Task = {
+      id: tempId,
+      userId: '',
+      name: dados.name,
+      time: dados.time ?? null,
+      duration: dados.duration ?? null,
+      priority: dados.priority ?? 'media',
+      category: dados.category ?? null,
+      status: dados.status ?? 'pending',
+      date: dados.date,
+      createdAt: new Date().toISOString(),
+    }
+    setTasks(prev => [...prev, tempTask])
+    setIsMutating(true)
     const result = await tasksApi.criar(dados)
-    setIsPending(false)
-    if (!result.data) throw new Error(result.error ?? 'Erro inesperado')
-    dispararRefetch()
-    return result.data
+    setIsMutating(false)
+    if (result.data) {
+      setTasks(prev => prev.map(t => t.id === tempId ? result.data! : t))
+    } else {
+      setTasks(prev => prev.filter(t => t.id !== tempId))
+      toast.error('Não foi possível criar a tarefa')
+    }
   }
 
-  return {
-    mutateAsync,
-    mutate: (dados: CreateTaskInput) => void mutateAsync(dados),
-    isPending,
-  }
-}
-
-export function useUpdateTask() {
-  const [isPending, setIsPending] = useState(false)
-
-  const mutateAsync = async (dados: UpdateTaskInput & { id: string }): Promise<Task> => {
-    const { id, ...resto } = dados
-    setIsPending(true)
-    const result = await tasksApi.atualizar(id, resto)
-    setIsPending(false)
-    if (!result.data) throw new Error(result.error ?? 'Erro inesperado')
-    dispararRefetch()
-    return result.data
+  async function updateTask(id: string, dados: UpdateTaskInput): Promise<void> {
+    const anterior = tasks.find(t => t.id === id)
+    if (!anterior) return
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...dados } : t))
+    const result = await tasksApi.atualizar(id, dados)
+    if (!result.data) {
+      setTasks(prev => prev.map(t => t.id === id ? anterior : t))
+      toast.error('Não foi possível actualizar a tarefa')
+    }
   }
 
-  return {
-    mutateAsync,
-    mutate: (dados: UpdateTaskInput & { id: string }) => void mutateAsync(dados),
-    isPending,
+  async function deleteTask(id: string): Promise<void> {
+    const anterior = tasks.find(t => t.id === id)
+    if (!anterior) return
+    const idxAnterior = tasks.findIndex(t => t.id === id)
+    setTasks(prev => prev.filter(t => t.id !== id))
+    const result = await tasksApi.deletar(id)
+    if (result.error !== null) {
+      setTasks(prev => {
+        const copy = [...prev]
+        copy.splice(idxAnterior, 0, anterior)
+        return copy
+      })
+      toast.error('Não foi possível apagar a tarefa')
+    }
   }
-}
 
-export function useDeleteTask() {
-  const [isPending, setIsPending] = useState(false)
-
-  const mutateAsync = async (id: string): Promise<void> => {
-    setIsPending(true)
-    await tasksApi.deletar(id)
-    setIsPending(false)
-    dispararRefetch()
-  }
-
-  return {
-    mutateAsync,
-    mutate: (id: string) => void mutateAsync(id),
-    isPending,
-  }
+  return { tasks, isLoading, error, isMutating, createTask, updateTask, deleteTask }
 }

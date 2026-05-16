@@ -1,12 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import {
-  useTasksQuery,
-  useCreateTask,
-  useUpdateTask,
-  useDeleteTask,
-} from '@/hooks/useTasks'
+import { useTasks } from '@/hooks/useTasks'
 import type { Task, TaskPriority, TaskStatus } from '@/types/task'
 
 function hoje(): string {
@@ -76,14 +71,12 @@ export default function RotinaPage() {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [form, setForm] = useState<FormState>(FORM_INICIAL)
 
-  const { data: tasks, isLoading, isError } = useTasksQuery(dataSelecionada)
-  const criarTask = useCreateTask()
-  const atualizarTask = useUpdateTask()
-  const deletarTask = useDeleteTask()
+  const { tasks, isLoading, error, isMutating, createTask, updateTask, deleteTask } =
+    useTasks(dataSelecionada)
 
   async function handleCriar(e: FormEvent) {
     e.preventDefault()
-    await criarTask.mutateAsync({
+    await createTask({
       name: form.name,
       date: dataSelecionada,
       time: form.time || undefined,
@@ -96,8 +89,7 @@ export default function RotinaPage() {
   }
 
   function toggleStatus(task: Task) {
-    const novoStatus = PROXIMO_STATUS[task.status]
-    atualizarTask.mutate({ id: task.id, status: novoStatus })
+    void updateTask(task.id, { status: PROXIMO_STATUS[task.status] })
   }
 
   return (
@@ -223,34 +215,49 @@ export default function RotinaPage() {
 
             <button
               type="submit"
-              disabled={criarTask.isPending}
+              disabled={isMutating}
               className="w-full bg-gray-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
             >
-              {criarTask.isPending ? 'Salvando...' : 'Salvar tarefa'}
+              {isMutating ? 'Salvando...' : 'Salvar tarefa'}
             </button>
           </form>
         )}
 
-        {/* Lista de tarefas */}
+        {/* Skeleton loader */}
         {isLoading && (
-          <div className="text-center py-12 text-gray-400 text-sm">
-            Carregando...
-          </div>
+          <ul className="space-y-2">
+            {[1, 2, 3].map(i => (
+              <li
+                key={i}
+                className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-start gap-3 animate-pulse"
+              >
+                <div className="w-12 h-4 bg-gray-200 rounded mt-0.5" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-3/4" />
+                  <div className="h-3 bg-gray-100 rounded w-1/2" />
+                </div>
+                <div className="w-16 h-6 bg-gray-200 rounded-full" />
+              </li>
+            ))}
+          </ul>
         )}
 
-        {isError && (
+        {/* Estado de erro */}
+        {!isLoading && error !== null && (
           <div className="text-center py-12 text-red-500 text-sm">
-            Erro ao carregar tarefas.
+            {error}
           </div>
         )}
 
-        {tasks && tasks.length === 0 && (
+        {/* Lista vazia */}
+        {!isLoading && error === null && tasks.length === 0 && (
           <div className="text-center py-12 text-gray-400 text-sm">
             Nenhuma tarefa para este dia.
           </div>
         )}
 
-        {tasks && tasks.length > 0 && (
+        {/* Lista de tarefas */}
+        {!isLoading && error === null && tasks.length > 0 && (
           <ul className="space-y-2">
             {tasks.map((task) => (
               <li
@@ -293,15 +300,13 @@ export default function RotinaPage() {
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => toggleStatus(task)}
-                    disabled={atualizarTask.isPending}
                     className={`text-xs px-2 py-1 rounded-full transition-colors ${STATUS_COR[task.status]}`}
                   >
                     {STATUS_LABEL[task.status]}
                   </button>
 
                   <button
-                    onClick={() => deletarTask.mutate(task.id)}
-                    disabled={deletarTask.isPending}
+                    onClick={() => void deleteTask(task.id)}
                     className="text-gray-300 hover:text-red-400 transition-colors text-sm"
                     aria-label="Deletar tarefa"
                   >
