@@ -42,7 +42,7 @@ export async function PATCH(
     const body = await request.json()
     const parsed = patchSchema.safeParse(body)
     if (!parsed.success) {
-      return err(parsed.issues[0]?.message ?? 'Dados inválidos', 422)
+      return err(parsed.error.issues[0]?.message ?? 'Dados inválidos', 422)
     }
 
     const { prefsId, metas } = await lerEstado()

@@ -51,7 +51,7 @@ Instruções: README.md → secção "Deploy em 1 clique"
 
 ## Variáveis de ambiente
 ```
-DATABASE_URL="file:./prisma/ana.db"   # gerado automaticamente pelo db-init
+DATABASE_URL="file:./ana.db"          # gerado automaticamente pelo db-init
 ANTHROPIC_API_KEY=                     # inserido pelo utilizador em /setup
 OPENAI_API_KEY=                        # inserido pelo utilizador em /setup
 ```

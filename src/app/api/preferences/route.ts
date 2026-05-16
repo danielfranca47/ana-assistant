@@ -39,7 +39,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const parsed = prefsSchema.safeParse(body)
     if (!parsed.success) {
-      return err(parsed.issues[0]?.message ?? 'Dados inválidos', 422)
+      return err(parsed.error.issues[0]?.message ?? 'Dados inválidos', 422)
     }
 
     const data = parsed.data

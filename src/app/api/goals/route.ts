@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const parsed = postSchema.safeParse(body)
     if (!parsed.success) {
-      return err(parsed.issues[0]?.message ?? 'Dados inválidos', 422)
+      return err(parsed.error.issues[0]?.message ?? 'Dados inválidos', 422)
     }
 
     const { prefs, metas } = await lerMetas()

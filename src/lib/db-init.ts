@@ -8,7 +8,7 @@ export async function dbInit(): Promise<void> {
   if (initialized) return
   initialized = true
 
-  const databaseUrl = process.env.DATABASE_URL ?? 'file:./prisma/ana.db'
+  const databaseUrl = process.env.DATABASE_URL ?? 'file:./ana.db'
 
   // Ignora bases de dados remotas (Turso, libsql remoto, etc.)
   if (!databaseUrl.startsWith('file:')) return
