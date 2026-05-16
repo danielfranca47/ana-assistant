@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { DM_Sans, Cormorant_Garamond } from 'next/font/google'
+import { dbInit } from '@/lib/db-init'
 import './globals.css'
 
 const dmSans = DM_Sans({
@@ -18,11 +19,12 @@ export const metadata: Metadata = {
   description: 'Assistente pessoal de produtividade',
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  await dbInit()
   return (
     <html lang="pt-BR">
       <body className={`${dmSans.variable} ${cormorant.variable} antialiased`}>
