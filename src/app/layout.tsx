@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import { dbInit } from '@/lib/db-init'
+import AppShell from '@/components/AppShell'
 import './globals.css'
 
 const dmSans = DM_Sans({
@@ -28,7 +29,7 @@ export default async function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={`${dmSans.variable} ${cormorant.variable} antialiased`}>
-        {children}
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   )

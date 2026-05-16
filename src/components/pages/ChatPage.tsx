@@ -87,34 +87,45 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-full" style={{ background: 'var(--ana-bg)' }}>
       {modoConversa && (
         <ConversationMode onClose={() => setModoConversa(false)} />
       )}
 
-      {/* Cabeçalho */}
-      <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white text-sm font-semibold">
-          A
-        </div>
-        <div className="flex-1">
-          <p className="text-sm font-semibold text-gray-900">Ana</p>
-          <p className="text-xs text-gray-400">Assistente pessoal</p>
-        </div>
+      {/* Barra de acção de voz */}
+      <div style={{
+        background: 'var(--ana-surface)',
+        borderBottom: '0.5px solid var(--ana-border)',
+        padding: '10px 16px',
+        display: 'flex',
+        justifyContent: 'flex-end',
+      }}>
         <button
           onClick={() => setModoConversa(true)}
-          className="flex items-center gap-1.5 text-xs bg-gray-900 text-white px-3 py-1.5 rounded-full hover:bg-gray-700 transition-colors"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 12,
+            background: 'var(--ana-accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 20,
+            padding: '6px 14px',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-dm-sans), sans-serif',
+          }}
         >
-          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
             <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
           </svg>
           Iniciar conversa com Ana
         </button>
-      </header>
+      </div>
 
       {/* Histórico */}
-      <div ref={listaRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div ref={listaRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ background: 'var(--ana-bg)' }}>
         {historico.length === 0 && (
           <div className="text-center text-gray-400 text-sm mt-16">
             <p className="text-2xl mb-2">👋</p>
@@ -157,7 +168,7 @@ export default function ChatPage() {
       )}
 
       {/* Área de input */}
-      <div className="bg-white border-t border-gray-200 px-4 py-3 flex items-end gap-2">
+      <div className="px-4 py-3 flex items-end gap-2" style={{ background: 'var(--ana-surface)', borderTop: '0.5px solid var(--ana-border)' }}>
         {/* Campo de texto */}
         <textarea
           rows={1}

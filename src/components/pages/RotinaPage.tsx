@@ -101,7 +101,7 @@ export default function RotinaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="overflow-y-auto h-full" style={{ background: 'var(--ana-bg)' }}>
       <div className="max-w-2xl mx-auto px-4 py-8">
         {/* Navegação de data */}
         <div className="flex items-center justify-between mb-6">

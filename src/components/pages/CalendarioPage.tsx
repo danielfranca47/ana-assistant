@@ -110,7 +110,7 @@ export default function CalendarioPage() {
   const eventosDiaSelecionado = dataSelecionada ? eventosDoDia(dataSelecionada) : []
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="overflow-y-auto h-full" style={{ background: 'var(--ana-bg)' }}>
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between mb-6">
