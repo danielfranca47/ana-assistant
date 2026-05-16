@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum TaskPriority {
+  alta
+  media
+  baixa
+}
+
+enum TaskStatus {
+  pending
+  done
+  current
+  late
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
+
+model Task {
+  id        String       @id @default(cuid())
+  name      String
+  time      String?      // HH:MM — null = tarefa sem horário fixo
+  duration  Int?         // duração em minutos
+  priority  TaskPriority @default(media)
+  category  String?
+  status    TaskStatus   @default(pending)
+  date      DateTime
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([date])
+}
+
+enum EventCategory {
+  work
+  meet
+  pers
+  break
+}
+
+model Event {
+  id        String        @id @default(cuid())
+  name      String
+  date      DateTime
+  startTime String?       // HH:MM
+  endTime   String?       // HH:MM
+  category  EventCategory @default(pers)
+  notes     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([date])
+}
+
+model Goal {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      GoalStatus @default(ACTIVE)
+  targetDate  DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model DailyReport {
+  id         String   @id @default(cuid())
+  date       DateTime @unique
+  summary    String?
+  aiAnalysis String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
