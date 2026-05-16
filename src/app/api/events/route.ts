@@ -17,8 +17,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl
     const from = searchParams.get('from') ?? undefined
     const to = searchParams.get('to') ?? undefined
-    const page = Math.max(1, Number(searchParams.get('page') ?? 1))
-    const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') ?? 20)))
 
     const where: Record<string, unknown> = {}
 
@@ -33,17 +31,12 @@ export async function GET(request: NextRequest) {
       where.date = filtroData
     }
 
-    const [events, total] = await Promise.all([
-      prisma.event.findMany({
-        where,
-        orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.event.count({ where }),
-    ])
+    const events = await prisma.event.findMany({
+      where,
+      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+    })
 
-    return ok({ events, total, page, limit })
+    return ok(events)
   } catch {
     return err('Erro interno', 500)
   }
