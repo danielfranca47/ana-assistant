@@ -48,34 +48,28 @@ export async function POST(request: NextRequest) {
             .map((t) => `  - [${t.status}] ${t.name}${t.time ? ` às ${t.time}` : ''}`)
             .join('\n')
 
-    const prompt = `Você é Ana, assistente pessoal de produtividade. Seja formal, profissional e responda sempre em português brasileiro.
+    const systemPrompt = `Você é Ana, assistente formal. Analise o relatório do dia e sugira de 3 a 5 acções concretas de rebalanceamento da rotina. Seja directa e prática. Português brasileiro, sem asteriscos.`
 
-O usuário enviou o seguinte relatório do dia (${hojeStr}):
+    const userPrompt = `Relatório do dia ${hojeStr}:
 
-**Tarefas da rotina registradas:**
+Tarefas da rotina registradas:
 ${linhasTarefas}
 
-**O que foi concluído:**
+O que foi concluído:
 ${done || '(não informado)'}
 
-**O que ficou pendente:**
+O que ficou pendente:
 ${undone || '(não informado)'}
 
-**Observações do usuário:**
-${notes || '(nenhuma)'}
-
-Com base nesse relatório, forneça sugestões concretas e objetivas para:
-1. Reorganizar ou reprogramar as tarefas pendentes
-2. Melhorar a produtividade nos próximos dias
-3. Pontos de atenção identificados
-
-Seja direto e prático nas sugestões.`
+Observações:
+${notes || '(nenhuma)'}`
 
     const anthropic = new Anthropic({ apiKey })
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }],
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
     })
 
     const bloco = response.content[0]
