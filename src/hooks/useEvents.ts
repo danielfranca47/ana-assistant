@@ -1,93 +1,82 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import { eventsApi } from '@/services/events'
 import type { CalendarEvent, CreateEventInput, UpdateEventInput } from '@/types/event'
 
-const EVENTS_EVENT = 'events-changed'
-
-export function useEventsQuery(from: string, to: string) {
-  const [data, setData] = useState<CalendarEvent[] | undefined>(undefined)
+export function useEvents(from: string, to: string) {
+  const [events, setEvents] = useState<CalendarEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isError, setIsError] = useState(false)
 
   const load = useCallback(async () => {
     setIsLoading(true)
-    setIsError(false)
     const result = await eventsApi.listar(from, to)
     if (result.data !== null) {
-      setData(result.data)
-    } else {
-      setIsError(true)
+      setEvents(result.data)
     }
     setIsLoading(false)
   }, [from, to])
 
   useEffect(() => {
     void load()
-    window.addEventListener(EVENTS_EVENT, load)
-    return () => window.removeEventListener(EVENTS_EVENT, load)
   }, [load])
 
-  return { data, isLoading, isError }
-}
-
-function dispararRefetch() {
-  window.dispatchEvent(new Event(EVENTS_EVENT))
-}
-
-export function useCreateEvent() {
-  const [isPending, setIsPending] = useState(false)
-
-  const mutateAsync = async (dados: CreateEventInput): Promise<CalendarEvent> => {
-    setIsPending(true)
+  async function createEvent(dados: CreateEventInput): Promise<void> {
+    const tempId = `temp-${Date.now()}`
+    const tempEvent: CalendarEvent = {
+      id: tempId,
+      userId: '',
+      name: dados.name,
+      date: `${dados.date}T00:00:00.000Z`,
+      startTime: dados.startTime ?? null,
+      endTime: dados.endTime ?? null,
+      category: dados.category ?? 'pers',
+      notes: dados.notes ?? null,
+      createdAt: new Date().toISOString(),
+    }
+    setEvents(prev =>
+      [...prev, tempEvent].sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) ||
+          (a.startTime ?? '').localeCompare(b.startTime ?? ''),
+      ),
+    )
     const result = await eventsApi.criar(dados)
-    setIsPending(false)
-    if (!result.data) throw new Error(result.error ?? 'Erro inesperado')
-    dispararRefetch()
-    return result.data
+    if (result.data) {
+      setEvents(prev => prev.map(e => (e.id === tempId ? result.data! : e)))
+    } else {
+      setEvents(prev => prev.filter(e => e.id !== tempId))
+      toast.error('Não foi possível criar o evento')
+    }
   }
 
-  return {
-    mutateAsync,
-    mutate: (dados: CreateEventInput) => void mutateAsync(dados),
-    isPending,
-  }
-}
-
-export function useUpdateEvent() {
-  const [isPending, setIsPending] = useState(false)
-
-  const mutateAsync = async (dados: UpdateEventInput & { id: string }): Promise<CalendarEvent> => {
-    const { id, ...resto } = dados
-    setIsPending(true)
-    const result = await eventsApi.atualizar(id, resto)
-    setIsPending(false)
-    if (!result.data) throw new Error(result.error ?? 'Erro inesperado')
-    dispararRefetch()
-    return result.data
+  async function updateEvent(id: string, dados: UpdateEventInput): Promise<void> {
+    const anterior = events.find(e => e.id === id)
+    if (!anterior) return
+    setEvents(prev => prev.map(e => (e.id === id ? { ...e, ...dados } : e)))
+    const result = await eventsApi.atualizar(id, dados)
+    if (!result.data) {
+      setEvents(prev => prev.map(e => (e.id === id ? anterior : e)))
+      toast.error('Não foi possível actualizar o evento')
+    }
   }
 
-  return {
-    mutateAsync,
-    mutate: (dados: UpdateEventInput & { id: string }) => void mutateAsync(dados),
-    isPending,
+  async function deleteEvent(id: string): Promise<void> {
+    const anterior = events.find(e => e.id === id)
+    if (!anterior) return
+    const idxAnterior = events.findIndex(e => e.id === id)
+    setEvents(prev => prev.filter(e => e.id !== id))
+    const result = await eventsApi.deletar(id)
+    if (result.error !== null) {
+      setEvents(prev => {
+        const copy = [...prev]
+        copy.splice(idxAnterior, 0, anterior)
+        return copy
+      })
+      toast.error('Não foi possível apagar o evento')
+    }
   }
-}
 
-export function useDeleteEvent() {
-  const [isPending, setIsPending] = useState(false)
-
-  const mutateAsync = async (id: string): Promise<void> => {
-    setIsPending(true)
-    await eventsApi.deletar(id)
-    setIsPending(false)
-    dispararRefetch()
-  }
-
-  return {
-    mutateAsync,
-    mutate: (id: string) => void mutateAsync(id),
-    isPending,
-  }
+  return { events, isLoading, createEvent, updateEvent, deleteEvent }
 }

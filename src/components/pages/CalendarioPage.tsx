@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { useEventsQuery, useCreateEvent, useDeleteEvent } from '@/hooks/useEvents'
+import { useEvents } from '@/hooks/useEvents'
 import type { CalendarEvent, EventCategory, CreateEventInput } from '@/types/event'
 
 const MESES = [
@@ -34,6 +34,12 @@ function ultimoDiaMes(year: number, month: number): string {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(ultimo).padStart(2, '0')}`
 }
 
+function adicionarDias(dateStr: string, dias: number): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  d.setDate(d.getDate() + dias)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function gerarGrade(year: number, month: number): Array<Date | null> {
   const primeiroDia = new Date(year, month, 1).getDay()
   const ultimoDia = new Date(year, month + 1, 0).getDate()
@@ -45,6 +51,13 @@ function gerarGrade(year: number, month: number): Array<Date | null> {
 
 function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function formatarDataCurta(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day).toLocaleDateString('pt-PT', {
+    weekday: 'short', day: 'numeric', month: 'short',
+  })
 }
 
 interface FormState {
@@ -68,13 +81,13 @@ export default function CalendarioPage() {
 
   const from = primeiroDiaMes(year, month)
   const to = ultimoDiaMes(year, month)
+  const hojeStr = hoje()
+  const daqui30 = adicionarDias(hojeStr, 30)
 
-  const { data: eventos } = useEventsQuery(from, to)
-  const criarEvento = useCreateEvent()
-  const deletarEvento = useDeleteEvent()
+  const { events: eventosDoMes, createEvent, deleteEvent } = useEvents(from, to)
+  const { events: proxEventos, isLoading: carregandoProx } = useEvents(hojeStr, daqui30)
 
   const grade = gerarGrade(year, month)
-  const hojeStr = hoje()
 
   function navegarMes(delta: number) {
     const novaData = new Date(year, month + delta, 1)
@@ -84,7 +97,7 @@ export default function CalendarioPage() {
   }
 
   function eventosDoDia(dateStr: string): CalendarEvent[] {
-    return (eventos ?? []).filter((e) => e.date.startsWith(dateStr))
+    return eventosDoMes.filter((e) => e.date.startsWith(dateStr))
   }
 
   function abrirNovoEvento(dateStr?: string) {
@@ -102,7 +115,7 @@ export default function CalendarioPage() {
       ...(form.endTime && { endTime: form.endTime }),
       ...(form.notes && { notes: form.notes }),
     }
-    await criarEvento.mutateAsync(input)
+    await createEvent(input)
     setForm({ name: '', date: hojeStr, startTime: '', endTime: '', category: 'pers', notes: '' })
     setMostrarForm(false)
   }
@@ -208,13 +221,45 @@ export default function CalendarioPage() {
             </div>
           </div>
 
-          {/* Painel lateral do dia selecionado */}
-          {dataSelecionada && (
-            <div className="w-64 shrink-0">
+          {/* Sidebar direita: sempre visível */}
+          <div className="w-64 shrink-0 space-y-4">
+            {/* Próximos eventos */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Próximos eventos</h2>
+              {carregandoProx ? (
+                <p className="text-xs text-gray-400">A carregar...</p>
+              ) : proxEventos.length === 0 ? (
+                <p className="text-xs text-gray-400">Nenhum evento nos próximos 30 dias.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {proxEventos.slice(0, 6).map((ev) => (
+                    <li key={ev.id} className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-900 truncate">{ev.name}</p>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="text-xs text-gray-400">
+                            {formatarDataCurta(ev.date.split('T')[0])}
+                          </span>
+                          {ev.startTime && (
+                            <span className="text-xs text-gray-400">· {ev.startTime}</span>
+                          )}
+                        </div>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${CATEGORIA_COR[ev.category]}`}>
+                          {CATEGORIA_LABEL[ev.category]}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Eventos do dia selecionado */}
+            {dataSelecionada && (
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-semibold text-gray-900">
-                    {new Date(dataSelecionada + 'T12:00:00').toLocaleDateString('pt-BR', {
+                    {new Date(dataSelecionada + 'T12:00:00').toLocaleDateString('pt-PT', {
                       weekday: 'short', day: 'numeric', month: 'short',
                     })}
                   </h2>
@@ -247,9 +292,9 @@ export default function CalendarioPage() {
                           )}
                         </div>
                         <button
-                          onClick={() => deletarEvento.mutate(ev.id)}
+                          onClick={() => void deleteEvent(ev.id)}
                           className="text-gray-300 hover:text-red-400 transition-colors text-xs shrink-0"
-                          aria-label="Deletar evento"
+                          aria-label="Apagar evento"
                         >
                           ✕
                         </button>
@@ -258,8 +303,8 @@ export default function CalendarioPage() {
                   </ul>
                 )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Modal de criação */}
@@ -336,10 +381,9 @@ export default function CalendarioPage() {
 
                 <button
                   type="submit"
-                  disabled={criarEvento.isPending}
-                  className="w-full bg-gray-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
+                  className="w-full bg-gray-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-700 transition-colors"
                 >
-                  {criarEvento.isPending ? 'Salvando...' : 'Salvar evento'}
+                  Guardar evento
                 </button>
               </form>
             </div>

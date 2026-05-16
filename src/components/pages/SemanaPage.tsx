@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { useEventsQuery, useCreateEvent, useDeleteEvent } from '@/hooks/useEvents'
+import { useEvents } from '@/hooks/useEvents'
+import { useTasks } from '@/hooks/useTasks'
 import type { CalendarEvent, EventCategory, CreateEventInput } from '@/types/event'
 
 const DIAS_ABREV = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
@@ -11,6 +12,12 @@ const CATEGORIA_COR: Record<EventCategory, string> = {
   meet:  'bg-purple-100 text-purple-700 border-purple-200',
   pers:  'bg-green-100 text-green-700 border-green-200',
   break: 'bg-orange-100 text-orange-700 border-orange-200',
+}
+
+const PRIORIDADE_COR: Record<string, string> = {
+  alta:  'border-l-2 border-red-400',
+  media: 'border-l-2 border-yellow-400',
+  baixa: 'border-l-2 border-gray-300',
 }
 
 function hoje(): string {
@@ -35,7 +42,7 @@ function diasDaSemana(domingoStr: string): string[] {
 
 function formatarDia(dateStr: string): string {
   const [year, month, day] = dateStr.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString('pt-BR', {
+  return new Date(year, month - 1, day).toLocaleDateString('pt-PT', {
     day: 'numeric', month: 'short',
   })
 }
@@ -43,7 +50,7 @@ function formatarDia(dateStr: string): string {
 function formatarIntervaloSemana(domStr: string, sabStr: string): string {
   const fmt = (s: string) => {
     const [year, month, day] = s.split('-').map(Number)
-    return new Date(year, month - 1, day).toLocaleDateString('pt-BR', {
+    return new Date(year, month - 1, day).toLocaleDateString('pt-PT', {
       day: 'numeric', month: 'short',
     })
   }
@@ -70,16 +77,15 @@ export default function SemanaPage() {
   const dias = diasDaSemana(semanaAtual)
   const sabado = dias[6]
 
-  const { data: eventos } = useEventsQuery(semanaAtual, sabado)
-  const criarEvento = useCreateEvent()
-  const deletarEvento = useDeleteEvent()
+  const { events: eventos, createEvent, deleteEvent } = useEvents(semanaAtual, sabado)
+  const { tasks: tarefasHoje } = useTasks(hojeStr)
 
   function navegarSemana(delta: number) {
     setSemanaAtual((s) => adicionarDias(s, delta * 7))
   }
 
   function eventosDoDia(dateStr: string): CalendarEvent[] {
-    return (eventos ?? []).filter((e) => e.date.startsWith(dateStr))
+    return eventos.filter((e) => e.date.startsWith(dateStr))
   }
 
   function abrirNovoEvento(dateStr: string) {
@@ -97,7 +103,7 @@ export default function SemanaPage() {
       ...(form.endTime && { endTime: form.endTime }),
       ...(form.notes && { notes: form.notes }),
     }
-    await criarEvento.mutateAsync(input)
+    await createEvent(input)
     setForm({ name: '', date: hojeStr, startTime: '', endTime: '', category: 'pers', notes: '' })
     setMostrarForm(false)
   }
@@ -171,9 +177,9 @@ export default function SemanaPage() {
                       <div className="flex items-start justify-between gap-1">
                         <span className="font-medium truncate">{ev.name}</span>
                         <button
-                          onClick={() => deletarEvento.mutate(ev.id)}
+                          onClick={() => void deleteEvent(ev.id)}
                           className="opacity-40 hover:opacity-100 shrink-0"
-                          aria-label="Deletar"
+                          aria-label="Apagar"
                         >
                           ✕
                         </button>
@@ -182,6 +188,19 @@ export default function SemanaPage() {
                         <div className="opacity-70 mt-0.5">
                           {ev.startTime}{ev.endTime ? ` – ${ev.endTime}` : ''}
                         </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Tarefas de hoje sobrepostas na coluna de hoje */}
+                  {isHoje && tarefasHoje.filter(t => t.status !== 'done').map((t) => (
+                    <div
+                      key={t.id}
+                      className={`rounded-lg bg-gray-50 border border-gray-200 p-2 text-xs text-gray-600 ${PRIORIDADE_COR[t.priority]}`}
+                    >
+                      <span className="truncate block">{t.name}</span>
+                      {t.time && (
+                        <span className="opacity-60 mt-0.5 block">{t.time}</span>
                       )}
                     </div>
                   ))}
@@ -273,10 +292,9 @@ export default function SemanaPage() {
 
                 <button
                   type="submit"
-                  disabled={criarEvento.isPending}
-                  className="w-full bg-gray-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
+                  className="w-full bg-gray-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-700 transition-colors"
                 >
-                  {criarEvento.isPending ? 'Salvando...' : 'Salvar evento'}
+                  Guardar evento
                 </button>
               </form>
             </div>
