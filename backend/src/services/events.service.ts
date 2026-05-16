@@ -26,7 +26,13 @@ function parseUTCDate(dateStr: string): Date {
   return new Date(Date.UTC(year, month - 1, day))
 }
 
-export async function listar(userId: string, from?: string, to?: string) {
+export async function listar(
+  userId: string,
+  from?: string,
+  to?: string,
+  page = 1,
+  limit = 20,
+) {
   const where: Record<string, unknown> = { userId }
 
   if (from || to) {
@@ -40,10 +46,19 @@ export async function listar(userId: string, from?: string, to?: string) {
     where.date = filtroData
   }
 
-  return prisma.event.findMany({
-    where,
-    orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-  })
+  const skip = (page - 1) * limit
+
+  const [events, total] = await Promise.all([
+    prisma.event.findMany({
+      where,
+      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+      skip,
+      take: limit,
+    }),
+    prisma.event.count({ where }),
+  ])
+
+  return { events, total }
 }
 
 export async function criar(userId: string, dados: CriarEventInput) {

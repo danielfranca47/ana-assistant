@@ -36,8 +36,17 @@ export async function listar(
   try {
     const from = typeof req.query.from === 'string' ? req.query.from : undefined
     const to = typeof req.query.to === 'string' ? req.query.to : undefined
-    const events = await eventsService.listar(req.user!.id, from, to)
-    res.status(200).json({ data: events, error: null, meta: {} })
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1)
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 20))
+
+    const { events, total } = await eventsService.listar(req.user!.id, from, to, page, limit)
+    const totalPages = Math.ceil(total / limit)
+
+    res.status(200).json({
+      data: events,
+      error: null,
+      meta: { page, limit, total, totalPages },
+    })
   } catch (err) {
     next(err)
   }

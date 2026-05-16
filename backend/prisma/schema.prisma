@@ -61,6 +61,10 @@ model Task {
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([date])
+  @@index([userId, date])
 }
 
 // Enumeração de categoria dos eventos
@@ -85,6 +89,10 @@ model Event {
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([date])
+  @@index([userId, date])
 }
 
 // Meta — objetivo de médio ou longo prazo com data alvo opcional
