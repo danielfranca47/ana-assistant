@@ -11,9 +11,8 @@ export function middleware(request: NextRequest) {
 
   const hasEnv =
     !!process.env.ANTHROPIC_API_KEY && !!process.env.OPENAI_API_KEY
-  const hasCookie = request.cookies.get('setup_done')?.value === '1'
 
-  if (!hasEnv && !hasCookie) {
+  if (!hasEnv) {
     return NextResponse.redirect(new URL('/setup', request.url))
   }
 

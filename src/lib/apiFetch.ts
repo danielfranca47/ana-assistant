@@ -1,11 +1,9 @@
 export type ApiResult<T> = { data: T; error: null } | { data: null; error: string }
 
 async function request<T>(url: string, init: RequestInit = {}): Promise<ApiResult<T>> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
   const isFormData = init.body instanceof FormData
   const headers: HeadersInit = {
     ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(init.headers ?? {}),
   }
 
@@ -14,11 +12,6 @@ async function request<T>(url: string, init: RequestInit = {}): Promise<ApiResul
     res = await fetch(url, { ...init, headers })
   } catch {
     return { data: null, error: 'Sem conexão com o servidor' }
-  }
-
-  if (res.status === 401) {
-    const { useAuthStore } = await import('@/store/authStore')
-    useAuthStore.getState().clearAuth()
   }
 
   let json: unknown
