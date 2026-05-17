@@ -11,12 +11,23 @@ interface Mensagem {
   content: string
 }
 
+function getVozFeminina(): SpeechSynthesisVoice | null {
+  const vozes = window.speechSynthesis.getVoices()
+  return (
+    vozes.find(v => v.lang === 'pt-BR' && /maria|female|feminina/i.test(v.name)) ??
+    vozes.find(v => v.lang === 'pt-BR') ??
+    null
+  )
+}
+
 function falarTexto(texto: string) {
   if (!('speechSynthesis' in window)) return
   window.speechSynthesis.cancel()
   const utterance = new SpeechSynthesisUtterance(texto)
   utterance.lang = 'pt-BR'
   utterance.rate = 1
+  const voz = getVozFeminina()
+  if (voz) utterance.voice = voz
   window.speechSynthesis.speak(utterance)
 }
 

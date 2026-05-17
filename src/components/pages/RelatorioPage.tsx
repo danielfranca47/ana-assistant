@@ -21,12 +21,23 @@ function getSpeechRecognitionClass(): (new () => AnyRec) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
 }
 
+function getVozFeminina(): SpeechSynthesisVoice | null {
+  const vozes = window.speechSynthesis.getVoices()
+  return (
+    vozes.find(v => v.lang === 'pt-BR' && /maria|female|feminina/i.test(v.name)) ??
+    vozes.find(v => v.lang === 'pt-BR') ??
+    null
+  )
+}
+
 function lerEmVoz(texto: string) {
   if (typeof window === 'undefined' || !window.speechSynthesis) return
   window.speechSynthesis.cancel()
   const utterance = new SpeechSynthesisUtterance(texto)
   utterance.lang = 'pt-BR'
   utterance.rate = 1
+  const voz = getVozFeminina()
+  if (voz) utterance.voice = voz
   window.speechSynthesis.speak(utterance)
 }
 

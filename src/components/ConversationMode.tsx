@@ -234,6 +234,12 @@ export default function ConversationMode({ onClose }: Props) {
           window.speechSynthesis.cancel()
           const utt = new SpeechSynthesisUtterance(reply)
           utt.lang = 'pt-BR'
+          const vozes = window.speechSynthesis.getVoices()
+          const vozFem =
+            vozes.find(v => v.lang === 'pt-BR' && /maria|female|feminina/i.test(v.name)) ??
+            vozes.find(v => v.lang === 'pt-BR') ??
+            null
+          if (vozFem) utt.voice = vozFem
           utt.onend = () => {
             if (isActiveRef.current) iniciarEscuta()
           }
