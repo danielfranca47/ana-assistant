@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { sendMessage } from '@/services/chat'
+import { sendMessage, type PendingAction } from '@/services/chat'
 import * as anaService from '@/services/ana'
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder'
 import ConversationMode from '@/components/ConversationMode'
@@ -52,6 +52,8 @@ export default function ChatPage() {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [conversas, setConversas] = useState<Conversa[]>([])
   const [sidebarAberta, setSidebarAberta] = useState(false)
+  const [acaoPendente, setAcaoPendente] = useState<PendingAction | null>(null)
+  const [executando, setExecutando] = useState(false)
   const [input, setInput] = useState('')
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -139,19 +141,48 @@ export default function ChatPage() {
     setInput('')
     setCarregando(true)
     setErro(null)
+    setAcaoPendente(null)
 
     try {
-      const { reply, conversationId: convId } = await sendMessage(textoTrimado, conversationId)
+      const { reply, conversationId: convId, pendingAction } = await sendMessage(textoTrimado, conversationId)
       setHistorico(h => [...h, { role: 'assistant', content: reply }])
       setConversationId(convId)
       localStorage.setItem(STORAGE_KEY, convId)
-      falarTexto(reply)
+      setAcaoPendente(pendingAction ?? null)
+      if (!pendingAction) falarTexto(reply)
       await carregarListaConversas()
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível obter resposta da Ana. Tente novamente.')
     } finally {
       setCarregando(false)
     }
+  }
+
+  async function confirmarAccao() {
+    if (!acaoPendente || !conversationId) return
+    setExecutando(true)
+    setErro(null)
+    try {
+      const result = await apiFetch.post<{ message: string }>('/api/ana/execute', {
+        tool: acaoPendente.tool,
+        input: acaoPendente.input,
+        conversationId,
+      })
+      const msg = result.data?.message ?? 'Acção executada com sucesso.'
+      setHistorico(h => [...h, { role: 'assistant', content: msg }])
+      falarTexto(msg)
+      await carregarListaConversas()
+    } catch {
+      setErro('Erro ao executar a acção. Tente novamente.')
+    } finally {
+      setAcaoPendente(null)
+      setExecutando(false)
+    }
+  }
+
+  function cancelarAccao() {
+    setAcaoPendente(null)
+    setHistorico(h => [...h, { role: 'assistant', content: 'Compreendido, acção cancelada.' }])
   }
 
   const handleAudioBlob = useCallback(
@@ -397,6 +428,27 @@ export default function ChatPage() {
               </div>
             </div>
           ))}
+
+          {acaoPendente && !isProcessing && (
+            <div className="flex justify-start">
+              <div className="flex gap-2 ml-1 mt-1">
+                <button
+                  onClick={confirmarAccao}
+                  disabled={executando}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                >
+                  ✓ {executando ? 'A executar...' : 'Confirmar'}
+                </button>
+                <button
+                  onClick={cancelarAccao}
+                  disabled={executando}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-50 transition-colors"
+                >
+                  ✗ Cancelar
+                </button>
+              </div>
+            </div>
+          )}
 
           {isProcessing && (
             <div className="flex justify-start">

@@ -1,15 +1,21 @@
 import { apiFetch } from '@/lib/apiFetch'
 
+export interface PendingAction {
+  tool: string
+  input: Record<string, unknown>
+}
+
 export interface SendMessageResult {
   reply: string
   conversationId: string
+  pendingAction?: PendingAction
 }
 
 export async function sendMessage(
   message: string,
   conversationId?: string | null,
 ): Promise<SendMessageResult> {
-  const result = await apiFetch.post<{ reply: string; conversationId: string }>(
+  const result = await apiFetch.post<SendMessageResult>(
     '/api/ana/chat',
     { message, conversationId },
   )
