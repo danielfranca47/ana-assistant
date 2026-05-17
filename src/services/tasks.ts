@@ -3,7 +3,10 @@ import type { Task, CreateTaskInput, UpdateTaskInput } from '@/types/task'
 
 export const tasksApi = {
   listar: (date?: string) =>
-    apiFetch.get<Task[]>(date ? `/api/tasks?date=${date}` : '/api/tasks'),
+    apiFetch.get<{ tasks: Task[] }>(date ? `/api/tasks?date=${date}` : '/api/tasks'),
+
+  listarIntervalo: (from: string, to: string) =>
+    apiFetch.get<{ tasks: Task[] }>(`/api/tasks?from=${from}&to=${to}&limit=100`),
 
   criar: (dados: CreateTaskInput) =>
     apiFetch.post<Task>('/api/tasks', dados),

@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import { useEvents } from '@/hooks/useEvents'
-import { useTasks } from '@/hooks/useTasks'
+import { useTasksRange } from '@/hooks/useTasksRange'
 import type { CalendarEvent, EventCategory, CreateEventInput } from '@/types/event'
 
 const DIAS_ABREV = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
@@ -78,7 +78,7 @@ export default function SemanaPage() {
   const sabado = dias[6]
 
   const { events: eventos, createEvent, deleteEvent } = useEvents(semanaAtual, sabado)
-  const { tasks: tarefasHoje } = useTasks(hojeStr)
+  const { tasks: tarefasSemana } = useTasksRange(semanaAtual, sabado)
 
   function navegarSemana(delta: number) {
     setSemanaAtual((s) => adicionarDias(s, delta * 7))
@@ -86,6 +86,10 @@ export default function SemanaPage() {
 
   function eventosDoDia(dateStr: string): CalendarEvent[] {
     return eventos.filter((e) => e.date.startsWith(dateStr))
+  }
+
+  function tarefasDoDia(dateStr: string) {
+    return tarefasSemana.filter((t) => t.status !== 'done' && t.date.startsWith(dateStr))
   }
 
   function abrirNovoEvento(dateStr: string) {
@@ -192,8 +196,8 @@ export default function SemanaPage() {
                     </div>
                   ))}
 
-                  {/* Tarefas de hoje sobrepostas na coluna de hoje */}
-                  {isHoje && tarefasHoje.filter(t => t.status !== 'done').map((t) => (
+                  {/* Tarefas da rotina para este dia */}
+                  {tarefasDoDia(dateStr).map((t) => (
                     <div
                       key={t.id}
                       className={`rounded-lg bg-gray-50 border border-gray-200 p-2 text-xs text-gray-600 ${PRIORIDADE_COR[t.priority]}`}

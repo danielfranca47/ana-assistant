@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import { useEvents } from '@/hooks/useEvents'
+import { useTasksRange } from '@/hooks/useTasksRange'
 import type { CalendarEvent, EventCategory, CreateEventInput } from '@/types/event'
 
 const MESES = [
@@ -86,6 +87,7 @@ export default function CalendarioPage() {
 
   const { events: eventosDoMes, createEvent, deleteEvent } = useEvents(from, to)
   const { events: proxEventos, isLoading: carregandoProx } = useEvents(hojeStr, daqui30)
+  const { tasks: tarefasDoMes } = useTasksRange(from, to)
 
   const grade = gerarGrade(year, month)
 
@@ -98,6 +100,10 @@ export default function CalendarioPage() {
 
   function eventosDoDia(dateStr: string): CalendarEvent[] {
     return eventosDoMes.filter((e) => e.date.startsWith(dateStr))
+  }
+
+  function tarefasDoDia(dateStr: string) {
+    return tarefasDoMes.filter((t) => t.status !== 'done' && t.date.startsWith(dateStr))
   }
 
   function abrirNovoEvento(dateStr?: string) {
@@ -209,9 +215,17 @@ export default function CalendarioPage() {
                           {ev.name}
                         </div>
                       ))}
-                      {evs.length > 2 && (
+                      {tarefasDoDia(dateStr).slice(0, Math.max(0, 2 - evs.length)).map((t) => (
+                        <div
+                          key={t.id}
+                          className="text-xs px-1 py-0.5 rounded truncate bg-gray-100 text-gray-600"
+                        >
+                          {t.name}
+                        </div>
+                      ))}
+                      {evs.length + tarefasDoDia(dateStr).length > 2 && (
                         <div className="text-xs text-gray-400 px-1">
-                          +{evs.length - 2} mais
+                          +{evs.length + tarefasDoDia(dateStr).length - 2} mais
                         </div>
                       )}
                     </div>

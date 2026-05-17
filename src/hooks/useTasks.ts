@@ -16,7 +16,7 @@ export function useTasks(date: string) {
     setError(null)
     const result = await tasksApi.listar(date)
     if (result.data !== null) {
-      setTasks(result.data)
+      setTasks(result.data.tasks)
     } else {
       setError(result.error)
     }

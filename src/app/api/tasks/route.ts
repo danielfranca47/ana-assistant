@@ -20,11 +20,18 @@ export async function GET(request: NextRequest) {
     const page = Math.max(1, Number(searchParams.get('page') ?? 1))
     const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') ?? 20)))
 
+    const from = searchParams.get('from') ?? undefined
+    const to   = searchParams.get('to')   ?? undefined
     const where: Record<string, unknown> = {}
 
     if (date) {
       const start = parseUTCDate(date)
       const end = new Date(start)
+      end.setUTCDate(end.getUTCDate() + 1)
+      where.date = { gte: start, lt: end }
+    } else if (from && to) {
+      const start = parseUTCDate(from)
+      const end = parseUTCDate(to)
       end.setUTCDate(end.getUTCDate() + 1)
       where.date = { gte: start, lt: end }
     }
