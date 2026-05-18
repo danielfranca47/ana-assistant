@@ -5,14 +5,15 @@ import { prisma } from '@/lib/prisma'
 import { ok, err, parseUTCDate } from '@/lib/api'
 
 const executeSchema = z.object({
-  tool: z.enum(['criar_tarefa', 'criar_evento', 'actualizar_tarefa', 'gerar_relatorio']),
-  input: z.record(z.unknown()),
+  tool: z.enum(['criar_tarefa', 'criar_multiplas_tarefas', 'criar_tarefa_recorrente', 'criar_evento', 'actualizar_tarefa', 'gerar_relatorio']),
+  input: z.record(z.string(), z.unknown()),
   conversationId: z.string(),
 })
 
 const criarTarefaSchema = z.object({
   name: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  description: z.string().optional(),
   time: z.string().optional(),
   duration: z.number().int().positive().optional(),
   priority: z.enum(['alta', 'media', 'baixa']).default('media'),
@@ -30,6 +31,7 @@ const criarEventoSchema = z.object({
 
 const actualizarTarefaSchema = z.object({
   taskId: z.string(),
+  description: z.string().optional(),
   status: z.enum(['pending', 'done', 'current', 'late']).optional(),
   priority: z.enum(['alta', 'media', 'baixa']).optional(),
 })
@@ -38,6 +40,31 @@ const gerarRelatorioSchema = z.object({
   done: z.string(),
   undone: z.string().optional(),
   notes: z.string().optional(),
+})
+
+const itemTarefaSchema = z.object({
+  name: z.string().min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  description: z.string().optional(),
+  time: z.string().optional(),
+  duration: z.number().int().positive().optional(),
+  priority: z.enum(['alta', 'media', 'baixa']).default('media'),
+  category: z.string().optional(),
+})
+
+const criarMultiplasTarefasSchema = z.object({
+  tarefas: z.array(itemTarefaSchema).min(1),
+})
+
+const criarTarefaRecorrenteSchema = z.object({
+  name: z.string().min(1),
+  data_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  data_fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  dias_semana: z.array(z.number().int().min(0).max(6)).optional(),
+  time: z.string().optional(),
+  duration: z.number().int().positive().optional(),
+  priority: z.enum(['alta', 'media', 'baixa']).default('media'),
+  category: z.string().optional(),
 })
 
 function toDateStr(date: Date): string {
@@ -69,6 +96,51 @@ export async function POST(request: NextRequest) {
       const message = `Tarefa "${task.name}" criada com sucesso para ${date}.`
       await salvarMensagemAna(conversationId, message)
       return ok({ success: true, result: task, message })
+    }
+
+    if (tool === 'criar_multiplas_tarefas') {
+      const v = criarMultiplasTarefasSchema.safeParse(input)
+      if (!v.success) return err('Dados das tarefas inválidos', 422)
+      const criadas = await Promise.all(
+        v.data.tarefas.map(({ date, ...rest }) =>
+          prisma.task.create({ data: { ...rest, date: parseUTCDate(date) } })
+        )
+      )
+      const nomes = criadas.map((t) => `"${t.name}"`).join(', ')
+      const message = `${criadas.length} tarefas criadas com sucesso: ${nomes}.`
+      await salvarMensagemAna(conversationId, message)
+      return ok({ success: true, result: criadas, message })
+    }
+
+    if (tool === 'criar_tarefa_recorrente') {
+      const v = criarTarefaRecorrenteSchema.safeParse(input)
+      if (!v.success) return err('Dados da tarefa recorrente inválidos', 422)
+      const { name, data_inicio, data_fim, dias_semana, time, duration, priority, category } = v.data
+
+      const inicio = parseUTCDate(data_inicio)
+      const fim = parseUTCDate(data_fim)
+      if (fim < inicio) return err('data_fim deve ser igual ou posterior a data_inicio', 422)
+
+      const diasPermitidos = new Set(dias_semana ?? [0, 1, 2, 3, 4, 5, 6])
+      const datas: Date[] = []
+      const cursor = new Date(inicio)
+      while (cursor <= fim) {
+        if (diasPermitidos.has(cursor.getUTCDay())) {
+          datas.push(new Date(cursor))
+        }
+        cursor.setUTCDate(cursor.getUTCDate() + 1)
+      }
+
+      if (datas.length === 0) return err('Nenhum dia válido no intervalo especificado', 422)
+
+      const criadas = await Promise.all(
+        datas.map((date) =>
+          prisma.task.create({ data: { name, time, duration, priority, category, date } })
+        )
+      )
+      const message = `Tarefa "${name}" criada para ${criadas.length} dias (de ${data_inicio} a ${data_fim}).`
+      await salvarMensagemAna(conversationId, message)
+      return ok({ success: true, result: criadas, message })
     }
 
     if (tool === 'criar_evento') {

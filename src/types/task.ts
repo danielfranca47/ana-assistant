@@ -5,6 +5,7 @@ export interface Task {
   id: string
   userId: string
   name: string
+  description: string | null
   time: string | null
   duration: number | null
   priority: TaskPriority
@@ -17,6 +18,7 @@ export interface Task {
 export interface CreateTaskInput {
   name: string
   date: string
+  description?: string
   time?: string
   duration?: number
   priority?: TaskPriority
@@ -26,6 +28,7 @@ export interface CreateTaskInput {
 
 export interface UpdateTaskInput {
   name?: string
+  description?: string
   time?: string
   duration?: number
   priority?: TaskPriority

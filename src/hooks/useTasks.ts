@@ -33,6 +33,7 @@ export function useTasks(date: string) {
       id: tempId,
       userId: '',
       name: dados.name,
+      description: dados.description ?? null,
       time: dados.time ?? null,
       duration: dados.duration ?? null,
       priority: dados.priority ?? 'media',

@@ -44,16 +44,17 @@ model Message {
 }
 
 model Task {
-  id        String       @id @default(cuid())
-  name      String
-  time      String?      // HH:MM — null = tarefa sem horário fixo
-  duration  Int?         // duração em minutos
-  priority  TaskPriority @default(media)
-  category  String?
-  status    TaskStatus   @default(pending)
-  date      DateTime
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  time        String?      // HH:MM — null = tarefa sem horário fixo
+  duration    Int?         // duração em minutos
+  priority    TaskPriority @default(media)
+  category    String?
+  status      TaskStatus   @default(pending)
+  date        DateTime
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   @@index([date])
 }

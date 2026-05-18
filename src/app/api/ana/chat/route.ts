@@ -17,14 +17,64 @@ const TOOLS: Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        name:     { type: 'string', description: 'Nome da tarefa' },
-        date:     { type: 'string', description: 'Data YYYY-MM-DD' },
+        name:        { type: 'string', description: 'Nome da tarefa' },
+        date:        { type: 'string', description: 'Data YYYY-MM-DD' },
+        description: { type: 'string', description: 'Descrição detalhada da tarefa (opcional)' },
+        time:        { type: 'string', description: 'Horário HH:MM' },
+        duration:    { type: 'number', description: 'Duração em minutos' },
+        priority:    { type: 'string', enum: ['alta', 'media', 'baixa'] },
+        category:    { type: 'string' },
+      },
+      required: ['name', 'date', 'priority'],
+    },
+  },
+  {
+    name: 'criar_multiplas_tarefas',
+    description: 'Cria várias tarefas de uma só vez. Usar quando o utilizador pede mais de uma tarefa no mesmo pedido.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        tarefas: {
+          type: 'array',
+          description: 'Lista de tarefas a criar',
+          items: {
+            type: 'object',
+            properties: {
+              name:        { type: 'string', description: 'Nome da tarefa' },
+              date:        { type: 'string', description: 'Data YYYY-MM-DD' },
+              description: { type: 'string', description: 'Descrição detalhada da tarefa (opcional)' },
+              time:        { type: 'string', description: 'Horário HH:MM' },
+              duration:    { type: 'number', description: 'Duração em minutos' },
+              priority:    { type: 'string', enum: ['alta', 'media', 'baixa'] },
+              category:    { type: 'string' },
+            },
+            required: ['name', 'date', 'priority'],
+          },
+        },
+      },
+      required: ['tarefas'],
+    },
+  },
+  {
+    name: 'criar_tarefa_recorrente',
+    description: 'Cria a mesma tarefa em múltiplos dias consecutivos (ex: de segunda a sexta durante uma semana). Usar quando o utilizador pede uma rotina diária ou tarefa repetida num intervalo de datas.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name:        { type: 'string', description: 'Nome da tarefa' },
+        data_inicio: { type: 'string', description: 'Data de início YYYY-MM-DD' },
+        data_fim:    { type: 'string', description: 'Data de fim YYYY-MM-DD (inclusive)' },
+        dias_semana: {
+          type: 'array',
+          description: 'Dias da semana a incluir: 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb. Omitir para incluir todos os dias.',
+          items: { type: 'number' },
+        },
         time:     { type: 'string', description: 'Horário HH:MM' },
         duration: { type: 'number', description: 'Duração em minutos' },
         priority: { type: 'string', enum: ['alta', 'media', 'baixa'] },
         category: { type: 'string' },
       },
-      required: ['name', 'date', 'priority'],
+      required: ['name', 'data_inicio', 'data_fim', 'priority'],
     },
   },
   {
@@ -56,13 +106,14 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'actualizar_tarefa',
-    description: 'Actualiza o status ou prioridade de uma tarefa existente pelo ID',
+    description: 'Actualiza o status, prioridade ou descrição de uma tarefa existente pelo ID',
     input_schema: {
       type: 'object',
       properties: {
-        taskId:   { type: 'string' },
-        status:   { type: 'string', enum: ['pending', 'done', 'current', 'late'] },
-        priority: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+        taskId:      { type: 'string' },
+        description: { type: 'string', description: 'Nova descrição da tarefa' },
+        status:      { type: 'string', enum: ['pending', 'done', 'current', 'late'] },
+        priority:    { type: 'string', enum: ['alta', 'media', 'baixa'] },
       },
       required: ['taskId'],
     },
@@ -82,7 +133,7 @@ const TOOLS: Tool[] = [
   },
 ]
 
-const TOOLS_ESCRITA = new Set(['criar_tarefa', 'criar_evento', 'actualizar_tarefa', 'gerar_relatorio'])
+const TOOLS_ESCRITA = new Set(['criar_tarefa', 'criar_multiplas_tarefas', 'criar_tarefa_recorrente', 'criar_evento', 'actualizar_tarefa', 'gerar_relatorio'])
 
 function toDateStr(date: Date): string {
   return date.toISOString().slice(0, 10)

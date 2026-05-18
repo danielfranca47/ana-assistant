@@ -56,6 +56,7 @@ interface FormState {
   duration: string
   priority: TaskPriority
   category: string
+  description: string
 }
 
 const FORM_INICIAL: FormState = {
@@ -64,12 +65,14 @@ const FORM_INICIAL: FormState = {
   duration: '',
   priority: 'media',
   category: '',
+  description: '',
 }
 
 export default function RotinaPage() {
   const [dataSelecionada, setDataSelecionada] = useState(hoje())
   const [mostrarForm, setMostrarForm] = useState(false)
   const [form, setForm] = useState<FormState>(FORM_INICIAL)
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
 
   const { tasks, isLoading, error, isMutating, createTask, updateTask, deleteTask } =
     useTasks(dataSelecionada)
@@ -83,6 +86,7 @@ export default function RotinaPage() {
       duration: form.duration ? Number(form.duration) : undefined,
       priority: form.priority,
       category: form.category || undefined,
+      description: form.description || undefined,
     })
     setForm(FORM_INICIAL)
     setMostrarForm(false)
@@ -90,6 +94,20 @@ export default function RotinaPage() {
 
   function toggleStatus(task: Task) {
     void updateTask(task.id, { status: PROXIMO_STATUS[task.status] })
+  }
+
+  function toggleConcluido(task: Task) {
+    const novoStatus = task.status === 'done' ? 'pending' : 'done'
+    void updateTask(task.id, { status: novoStatus })
+  }
+
+  function toggleExpandido(id: string) {
+    setExpandidos(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
   return (
@@ -213,6 +231,17 @@ export default function RotinaPage() {
               </div>
             </div>
 
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Descrição</label>
+              <textarea
+                placeholder="Detalhes da tarefa (opcional)"
+                rows={2}
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500 resize-none"
+              />
+            </div>
+
             <button
               type="submit"
               disabled={isMutating}
@@ -231,6 +260,7 @@ export default function RotinaPage() {
                 key={i}
                 className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-start gap-3 animate-pulse"
               >
+                <div className="w-5 h-5 rounded border-2 border-gray-200 shrink-0 mt-0.5" />
                 <div className="w-12 h-4 bg-gray-200 rounded mt-0.5" />
                 <div className="flex-1 space-y-2">
                   <div className="h-4 bg-gray-200 rounded w-3/4" />
@@ -264,6 +294,23 @@ export default function RotinaPage() {
                 key={task.id}
                 className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-start gap-3"
               >
+                {/* Checkbox de conclusão */}
+                <button
+                  onClick={() => toggleConcluido(task)}
+                  className={`shrink-0 mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                    task.status === 'done'
+                      ? 'bg-gray-900 border-gray-900 text-white'
+                      : 'border-gray-300 hover:border-gray-500'
+                  }`}
+                  aria-label={task.status === 'done' ? 'Marcar como pendente' : 'Marcar como concluída'}
+                >
+                  {task.status === 'done' && (
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4L3.5 6.5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+
                 {/* Horário */}
                 <div className="w-12 shrink-0 text-xs text-gray-400 pt-0.5">
                   {task.time ?? '—'}
@@ -293,7 +340,22 @@ export default function RotinaPage() {
                     >
                       {task.priority}
                     </span>
+                    {task.description && (
+                      <button
+                        onClick={() => toggleExpandido(task.id)}
+                        className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label={expandidos.has(task.id) ? 'Recolher descrição' : 'Ver descrição'}
+                      >
+                        {expandidos.has(task.id) ? '▴' : '▾'}
+                      </button>
+                    )}
                   </div>
+
+                  {expandidos.has(task.id) && task.description && (
+                    <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                      {task.description}
+                    </p>
+                  )}
                 </div>
 
                 {/* Status + delete */}

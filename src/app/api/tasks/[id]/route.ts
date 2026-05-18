@@ -5,6 +5,7 @@ import { ok, err } from '@/lib/api'
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
+  description: z.string().optional(),
   time: z.string().optional(),
   duration: z.number().int().positive().optional(),
   priority: z.enum(['alta', 'media', 'baixa']).optional(),
