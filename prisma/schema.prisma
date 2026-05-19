@@ -111,3 +111,23 @@ model UserPreferences {
   goalsJson     String   @default("[]")
   updatedAt     DateTime @updatedAt
 }
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  priority    String   @default("media")  // alta | media | baixa
+  activities  String   @default("[]")     // JSON: [{name, frequency}]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Objective {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  horizon     String                       // "1m" | "3m" | "6m" | "1y" | "5y"
+  status      String   @default("active") // active | completed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

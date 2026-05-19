@@ -15,12 +15,6 @@ interface Prefs {
   offDays:       string
 }
 
-interface Meta {
-  id:        string
-  name:      string
-  targetPct: number
-}
-
 const PREFS_DEFAULT: Prefs = {
   workStart:  '08:00',
   workEnd:    '18:00',
@@ -132,11 +126,8 @@ const timeInputStyle: React.CSSProperties = {
 
 export default function MetasPage() {
   const [prefs, setPrefs]         = useState<Prefs>(PREFS_DEFAULT)
-  const [metas, setMetas]         = useState<Meta[]>([])
   const [carregando, setCarregando] = useState(true)
   const [guardado, setGuardado]   = useState(false)
-  const [novaMetaNome, setNovaMetaNome] = useState('')
-  const [adicionando, setAdicionando]   = useState(false)
   const [notificacoes, setNotificacoes] = useState(['Activas'])
   const [checkIn, setCheckIn]           = useState(['Sex tarde'])
 
@@ -144,10 +135,7 @@ export default function MetasPage() {
   const guardadoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    Promise.all([
-      apiFetch.get<Prefs>('/api/preferences'),
-      apiFetch.get<Meta[]>('/api/goals'),
-    ]).then(([resPrefs, resMetas]) => {
+    apiFetch.get<Prefs>('/api/preferences').then((resPrefs) => {
       if (resPrefs.data) {
         setPrefs({
           workStart:  resPrefs.data.workStart,
@@ -158,7 +146,6 @@ export default function MetasPage() {
           offDays:    resPrefs.data.offDays,
         })
       }
-      if (resMetas.data) setMetas(resMetas.data)
     }).finally(() => setCarregando(false))
   }, [])
 
@@ -190,29 +177,6 @@ export default function MetasPage() {
     const nomes = focusParaNomes(prefs.focusTime)
     const novosNomes = nomes.includes(opt) ? nomes.filter((x) => x !== opt) : [...nomes, opt]
     alterarPrefs({ focusTime: nomesParaFocus(novosNomes) })
-  }
-
-  async function adicionarMeta() {
-    const nome = novaMetaNome.trim()
-    if (!nome) return
-    setAdicionando(true)
-    const res = await apiFetch.post<Meta>('/api/goals', { name: nome, targetPct: 0 })
-    if (res.data) {
-      setMetas((prev) => [...prev, res.data!])
-      setNovaMetaNome('')
-    }
-    setAdicionando(false)
-  }
-
-  async function actualizarPct(id: string, pct: number) {
-    const val = Math.max(0, Math.min(100, pct))
-    setMetas((prev) => prev.map((m) => (m.id === id ? { ...m, targetPct: val } : m)))
-    await apiFetch.patch(`/api/goals/${id}`, { targetPct: val })
-  }
-
-  async function removerMeta(id: string) {
-    setMetas((prev) => prev.filter((m) => m.id !== id))
-    await apiFetch.delete(`/api/goals/${id}`)
   }
 
   function toggleLocal(current: string[], opt: string): string[] {
@@ -314,113 +278,6 @@ export default function MetasPage() {
                 active={focusParaNomes(prefs.focusTime)}
                 onChange={toggleFoco}
               />
-            </div>
-          </div>
-
-          {/* Card: Metas semanais */}
-          <div style={cardStyle}>
-            <h3 style={cardTitleStyle}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ana-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="6" />
-                <circle cx="12" cy="12" r="2" />
-              </svg>
-              Metas semanais
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {metas.length === 0 && (
-                <p style={{ fontSize: 12, color: 'var(--ana-muted)', textAlign: 'center', padding: '12px 0' }}>
-                  Sem metas. Adicione abaixo.
-                </p>
-              )}
-              {metas.map((meta) => (
-                <div key={meta.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12, color: 'var(--ana-text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {meta.name}
-                  </span>
-                  <div style={{ width: 60, height: 5, background: 'var(--ana-border)', borderRadius: 3, overflow: 'hidden', flexShrink: 0 }}>
-                    <div style={{ width: `${meta.targetPct}%`, height: '100%', background: 'var(--ana-accent)', borderRadius: 3 }} />
-                  </div>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={meta.targetPct}
-                    onChange={(e) => actualizarPct(meta.id, Number(e.target.value))}
-                    style={{
-                      width:        42,
-                      fontSize:     11,
-                      color:        'var(--ana-muted)',
-                      background:   'transparent',
-                      border:       '0.5px solid var(--ana-border)',
-                      borderRadius: 4,
-                      padding:      '1px 4px',
-                      textAlign:    'right',
-                      flexShrink:   0,
-                      fontFamily:   'var(--font-dm-sans), sans-serif',
-                    }}
-                  />
-                  <span style={{ fontSize: 10, color: 'var(--ana-muted)', flexShrink: 0 }}>%</span>
-                  <button
-                    onClick={() => removerMeta(meta.id)}
-                    title="Remover meta"
-                    style={{
-                      background: 'none',
-                      border:     'none',
-                      cursor:     'pointer',
-                      color:      'var(--ana-muted)',
-                      padding:    '2px',
-                      lineHeight: 1,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {/* Input inline para nova meta */}
-            <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
-              <input
-                type="text"
-                placeholder="Nome da meta..."
-                value={novaMetaNome}
-                onChange={(e) => setNovaMetaNome(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') adicionarMeta() }}
-                style={{
-                  flex:         1,
-                  fontSize:     12,
-                  background:   'transparent',
-                  border:       '0.5px solid var(--ana-border)',
-                  borderRadius: 6,
-                  padding:      '5px 8px',
-                  color:        'var(--ana-text)',
-                  fontFamily:   'var(--font-dm-sans), sans-serif',
-                  outline:      'none',
-                }}
-              />
-              <button
-                onClick={adicionarMeta}
-                disabled={adicionando || !novaMetaNome.trim()}
-                style={{
-                  padding:      '5px 12px',
-                  background:   'var(--ana-accent)',
-                  color:        'white',
-                  border:       'none',
-                  borderRadius: 6,
-                  fontSize:     12,
-                  fontWeight:   500,
-                  cursor:       'pointer',
-                  fontFamily:   'var(--font-dm-sans), sans-serif',
-                  opacity:      adicionando || !novaMetaNome.trim() ? 0.5 : 1,
-                }}
-              >
-                + Adicionar
-              </button>
             </div>
           </div>
 

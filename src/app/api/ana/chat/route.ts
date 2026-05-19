@@ -148,7 +148,7 @@ async function buscarContextoDia(): Promise<string> {
   const proximosSete = new Date(inicioHoje)
   proximosSete.setUTCDate(proximosSete.getUTCDate() + 7)
 
-  const [tarefas, eventos, prefs] = await Promise.all([
+  const [tarefas, eventos, prefs, projetos, objetivos] = await Promise.all([
     prisma.task.findMany({
       where: { date: { gte: inicioHoje, lt: fimHoje } },
       orderBy: [{ time: 'asc' }, { createdAt: 'asc' }],
@@ -158,6 +158,8 @@ async function buscarContextoDia(): Promise<string> {
       orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
     }),
     prisma.userPreferences.findFirst(),
+    prisma.project.findMany({ orderBy: { createdAt: 'asc' } }),
+    prisma.objective.findMany({ where: { status: 'active' }, orderBy: { createdAt: 'asc' } }),
   ])
 
   const linhasTarefas =
@@ -199,7 +201,37 @@ async function buscarContextoDia(): Promise<string> {
     linhasPrefs = `\n\n## Preferências do utilizador:\nTrabalho das ${prefs.workStart} às ${prefs.workEnd}, almoço das ${prefs.lunchStart} às ${prefs.lunchEnd}. Foco profundo de ${focoLabel}. Folga nos dias ${prefs.offDays} (0=Dom, 1=Seg, ..., 6=Sáb).`
   }
 
-  return `## Tarefas de hoje (${hojeStr}):\n${linhasTarefas}\n\n## Eventos dos próximos 7 dias:\n${linhasEventos}${linhasPrefs}`
+  let linhasProjetos = ''
+  if (projetos.length > 0) {
+    const linhas = projetos.map((p) => {
+      let activities: { name: string; frequency: string }[] = []
+      try { activities = JSON.parse(p.activities) } catch { /* */ }
+      const actStr = activities.length > 0
+        ? `\n    Atividades: ${activities.map((a) => `${a.name}${a.frequency ? ` (${a.frequency})` : ''}`).join(', ')}`
+        : ''
+      const desc = p.description ? ` — ${p.description}` : ''
+      return `  - ${p.name} [prioridade: ${p.priority}]${desc}${actStr}`
+    }).join('\n')
+    linhasProjetos = `\n\n## Projetos do utilizador:\n${linhas}`
+  }
+
+  let linhasObjetivos = ''
+  if (objetivos.length > 0) {
+    const horizonLabels: Record<string, string> = { '1m': 'Próximo mês', '3m': '3 meses', '6m': '6 meses', '1y': '1 ano', '5y': '5 anos' }
+    const grupos: Record<string, string[]> = {}
+    for (const o of objetivos) {
+      const label = horizonLabels[o.horizon] ?? o.horizon
+      if (!grupos[label]) grupos[label] = []
+      const det = o.description ? ` — ${o.description}` : ''
+      grupos[label].push(`${o.title}${det}`)
+    }
+    const linhas = Object.entries(grupos)
+      .map(([label, items]) => `  ${label}: ${items.join(' | ')}`)
+      .join('\n')
+    linhasObjetivos = `\n\n## Objetivos do utilizador:\n${linhas}`
+  }
+
+  return `## Tarefas de hoje (${hojeStr}):\n${linhasTarefas}\n\n## Eventos dos próximos 7 dias:\n${linhasEventos}${linhasPrefs}${linhasProjetos}${linhasObjetivos}`
 }
 
 async function gerarTitulo(anthropic: Anthropic, mensagem: string): Promise<string> {
