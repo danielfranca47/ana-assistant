@@ -131,6 +131,53 @@ const TOOLS: Tool[] = [
       required: ['done'],
     },
   },
+  {
+    name: 'registrar_contexto',
+    description: 'Guarda permanentemente os projetos e/ou objetivos que o utilizador descreveu, para usar como contexto futuro. Usar quando o utilizador partilha informação sobre os seus projetos, metas ou objetivos que ainda não estão registados.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        projetos: {
+          type: 'array',
+          description: 'Lista de projetos a registar',
+          items: {
+            type: 'object',
+            properties: {
+              name:        { type: 'string', description: 'Nome do projeto' },
+              description: { type: 'string', description: 'Descrição do projeto' },
+              priority:    { type: 'string', enum: ['alta', 'media', 'baixa'], description: 'Prioridade estratégica' },
+              activities: {
+                type: 'array',
+                description: 'Atividades recorrentes deste projeto',
+                items: {
+                  type: 'object',
+                  properties: {
+                    name:      { type: 'string' },
+                    frequency: { type: 'string' },
+                  },
+                  required: ['name'],
+                },
+              },
+            },
+            required: ['name', 'priority'],
+          },
+        },
+        objetivos: {
+          type: 'array',
+          description: 'Lista de objetivos/metas a registar',
+          items: {
+            type: 'object',
+            properties: {
+              title:       { type: 'string', description: 'Título do objetivo' },
+              description: { type: 'string', description: 'Descrição detalhada' },
+              horizon:     { type: 'string', enum: ['1m', '3m', '6m', '1y', '5y'], description: 'Horizonte temporal' },
+            },
+            required: ['title', 'horizon'],
+          },
+        },
+      },
+    },
+  },
 ]
 
 const TOOLS_ESCRITA = new Set(['criar_tarefa', 'criar_multiplas_tarefas', 'criar_tarefa_recorrente', 'criar_evento', 'actualizar_tarefa', 'gerar_relatorio'])
@@ -331,7 +378,8 @@ Quando precisares de criar tarefas ou eventos, usa as ferramentas disponíveis.
 Para "listar_tarefas", usa sempre a data actual se o utilizador pedir "hoje".
 Ao chamar uma ferramenta de escrita (criar_tarefa, criar_evento, actualizar_tarefa, gerar_relatorio),
 inclui SEMPRE um bloco de texto ANTES da chamada de ferramenta a descrever o que vais fazer
-e a pedir confirmação ao utilizador.`
+e a pedir confirmação ao utilizador.
+Se o utilizador partilhar informação sobre os seus projetos, metas ou objetivos e essa informação ainda não estiver registada no contexto acima, usa imediatamente a ferramenta "registrar_contexto" para os guardar antes de responder. Não peças confirmação — age directamente com base no que foi descrito.`
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -347,6 +395,62 @@ e a pedir confirmação ao utilizador.`
 
       if (!toolBlock || toolBlock.type !== 'tool_use') {
         return err('Resposta inesperada da API Claude', 500)
+      }
+
+      // Execução imediata — sem confirmação do utilizador
+      if (toolBlock.name === 'registrar_contexto') {
+        type Activity = { name: string; frequency?: string }
+        type ProjetoInput = { name: string; description?: string; priority: string; activities?: Activity[] }
+        type ObjetivoInput = { title: string; description?: string; horizon: string }
+        const input = toolBlock.input as { projetos?: ProjetoInput[]; objetivos?: ObjetivoInput[] }
+
+        const projetosCriados = input.projetos?.length
+          ? await Promise.all(
+              input.projetos.map((p) =>
+                prisma.project.create({
+                  data: {
+                    name:        p.name,
+                    description: p.description ?? null,
+                    priority:    p.priority ?? 'media',
+                    activities:  JSON.stringify(p.activities ?? []),
+                  },
+                })
+              )
+            )
+          : []
+
+        const objetivosCriados = input.objetivos?.length
+          ? await Promise.all(
+              input.objetivos.map((o) =>
+                prisma.objective.create({
+                  data: {
+                    title:       o.title,
+                    description: o.description ?? null,
+                    horizon:     o.horizon,
+                  },
+                })
+              )
+            )
+          : []
+
+        const toolResult = `Registado com sucesso: ${projetosCriados.length} projeto(s) e ${objetivosCriados.length} objetivo(s).`
+
+        const response2 = await anthropic.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages: [
+            ...historyMessages,
+            { role: 'assistant', content: response.content },
+            { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolBlock.id, content: toolResult }] },
+          ],
+          tools: TOOLS,
+        })
+        const bloco2 = response2.content.find((b) => b.type === 'text')
+        const reply = bloco2?.type === 'text' ? bloco2.text : toolResult
+        await prisma.message.create({ data: { conversationId, role: 'assistant', content: reply } })
+        await actualizarConversa(conversationId, isPrimeira, anthropic, message)
+        return ok({ reply, conversationId })
       }
 
       // Leitura — executa imediatamente e faz segunda chamada
