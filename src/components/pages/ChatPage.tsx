@@ -136,6 +136,13 @@ export default function ChatPage() {
     const textoTrimado = texto.trim()
     if (!textoTrimado || carregando) return
 
+    if (acaoPendente) {
+      setHistorico(h => [...h, { role: 'user', content: textoTrimado }])
+      setInput('')
+      await confirmarAccao()
+      return
+    }
+
     const novaMensagem: Mensagem = { role: 'user', content: textoTrimado }
     setHistorico(h => [...h, novaMensagem])
     setInput('')
