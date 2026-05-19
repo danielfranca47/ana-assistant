@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { ok, err, parseUTCDate } from '@/lib/api'
 
 const executeSchema = z.object({
-  tool: z.enum(['criar_tarefa', 'criar_multiplas_tarefas', 'criar_tarefa_recorrente', 'criar_evento', 'actualizar_tarefa', 'gerar_relatorio']),
+  tool: z.enum(['criar_tarefa', 'criar_multiplas_tarefas', 'criar_tarefa_recorrente', 'criar_evento', 'actualizar_tarefa', 'gerar_relatorio', 'registrar_contexto']),
   input: z.record(z.string(), z.unknown()),
   conversationId: z.string(),
 })
@@ -54,6 +54,26 @@ const itemTarefaSchema = z.object({
 
 const criarMultiplasTarefasSchema = z.object({
   tarefas: z.array(itemTarefaSchema).min(1),
+})
+
+const activitySchema = z.object({
+  name: z.string(),
+  frequency: z.string().optional(),
+})
+const projetoSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  priority: z.enum(['alta', 'media', 'baixa']).default('media'),
+  activities: z.array(activitySchema).optional(),
+})
+const objetivoSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  horizon: z.enum(['1m', '3m', '6m', '1y', '5y']),
+})
+const registrarContextoSchema = z.object({
+  projetos: z.array(projetoSchema).optional(),
+  objetivos: z.array(objetivoSchema).optional(),
 })
 
 const criarTarefaRecorrenteSchema = z.object({
@@ -213,6 +233,44 @@ export async function POST(request: NextRequest) {
       const message = `Relatório do dia gerado. ${suggestions.slice(0, 120)}...`
       await salvarMensagemAna(conversationId, message)
       return ok({ success: true, result: report, message })
+    }
+
+    if (tool === 'registrar_contexto') {
+      const v = registrarContextoSchema.safeParse(input)
+      if (!v.success) return err('Dados de contexto inválidos', 422)
+
+      const projetosCriados = v.data.projetos?.length
+        ? await Promise.all(
+            v.data.projetos.map((p) =>
+              prisma.project.create({
+                data: {
+                  name:        p.name,
+                  description: p.description ?? null,
+                  priority:    p.priority,
+                  activities:  JSON.stringify(p.activities ?? []),
+                },
+              })
+            )
+          )
+        : []
+
+      const objetivosCriados = v.data.objetivos?.length
+        ? await Promise.all(
+            v.data.objetivos.map((o) =>
+              prisma.objective.create({
+                data: {
+                  title:       o.title,
+                  description: o.description ?? null,
+                  horizon:     o.horizon,
+                },
+              })
+            )
+          )
+        : []
+
+      const message = `Contexto registado: ${projetosCriados.length} projeto(s) e ${objetivosCriados.length} objetivo(s) guardados com sucesso.`
+      await salvarMensagemAna(conversationId, message)
+      return ok({ success: true, message })
     }
 
     return err('Ferramenta desconhecida', 400)

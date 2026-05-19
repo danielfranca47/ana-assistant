@@ -74,6 +74,7 @@ Após concluir qualquer alteração de código, Claude DEVE obrigatoriamente:
 2. Adicionar os ficheiros alterados ao stage (`git add` — nunca usar `.env` ou segredos)
 3. Criar um commit seguindo Conventional Commits com resumo claro das implementações
 4. Confirmar o commit bem-sucedido com `git status`
+5. Apagar a pasta de cache do Next.js: `Remove-Item -Recurse -Force C:\ana-assistant\ana-assistant\.next\cache`
 
 Esta instrução aplica-se a TODA e QUALQUER modificação de código, sem excepção.
 
