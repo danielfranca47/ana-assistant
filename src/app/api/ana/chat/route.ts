@@ -105,6 +105,19 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: 'listar_tarefas_periodo',
+    description: 'Lista as tarefas do utilizador num intervalo de datas. Usar quando o utilizador pede tarefas de vários dias, próximos N dias, ou num período. Suporta filtro por palavra-chave.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        date_inicio: { type: 'string', description: 'Data início YYYY-MM-DD (inclusive)' },
+        date_fim:    { type: 'string', description: 'Data fim YYYY-MM-DD (inclusive)' },
+        keyword:     { type: 'string', description: 'Filtrar por palavra-chave no nome da tarefa (opcional)' },
+      },
+      required: ['date_inicio', 'date_fim'],
+    },
+  },
+  {
     name: 'actualizar_tarefa',
     description: 'Actualiza o status, prioridade ou descrição de uma tarefa existente pelo ID',
     input_schema: {
@@ -181,6 +194,7 @@ const TOOLS: Tool[] = [
 ]
 
 const TOOLS_ESCRITA = new Set(['criar_tarefa', 'criar_multiplas_tarefas', 'criar_tarefa_recorrente', 'criar_evento', 'actualizar_tarefa', 'gerar_relatorio', 'registrar_contexto'])
+const TOOLS_LEITURA = new Set(['listar_tarefas', 'listar_tarefas_periodo'])
 
 function toDateStr(date: Date): string {
   return date.toISOString().slice(0, 10)
@@ -395,6 +409,8 @@ ${contexto}
 
 Quando precisares de criar tarefas ou eventos, usa as ferramentas disponíveis.
 Para "listar_tarefas", usa sempre a data actual se o utilizador pedir "hoje".
+Para intervalos de datas ou "próximos N dias", usa sempre "listar_tarefas_periodo" (nunca chames "listar_tarefas" múltiplas vezes).
+Para pesquisar tarefas por palavra-chave (ex: "caminhada"), usa "listar_tarefas_periodo" com o campo "keyword" e um intervalo amplo.
 Ao chamar uma ferramenta de escrita (criar_tarefa, criar_multiplas_tarefas, criar_tarefa_recorrente, criar_evento, actualizar_tarefa, gerar_relatorio, registrar_contexto),
 inclui SEMPRE um bloco de texto ANTES da chamada de ferramenta a descrever o que vais fazer
 e a pedir confirmação ao utilizador. Chama a ferramenta no mesmo turno — o sistema trata da aprovação.
@@ -418,20 +434,53 @@ Quando o utilizador partilhar dados de projetos, metas ou objetivos — mesmo qu
         return err('Resposta inesperada da API Claude', 500)
       }
 
-      // Leitura — executa imediatamente e faz segunda chamada
-      if (toolBlock.name === 'listar_tarefas') {
-        const input = toolBlock.input as { date: string }
-        const inicio = parseUTCDate(input.date)
-        const fim = new Date(inicio)
-        fim.setUTCDate(fim.getUTCDate() + 1)
-        const tarefas = await prisma.task.findMany({
-          where: { date: { gte: inicio, lt: fim } },
-          orderBy: [{ time: 'asc' }, { createdAt: 'asc' }],
-        })
-        const toolResult =
-          tarefas.length === 0
-            ? 'Nenhuma tarefa encontrada.'
-            : tarefas.map((t) => `[${t.id}] ${t.name}${t.time ? ` às ${t.time}` : ''} [${t.status}]`).join('\n')
+      // Leitura — suporta múltiplos tool_use em paralelo (ex: listar_tarefas chamado N vezes)
+      const allToolBlocks = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
+      if (allToolBlocks.length > 0 && allToolBlocks.every((b) => TOOLS_LEITURA.has(b.name))) {
+        const toolResults = await Promise.all(
+          allToolBlocks.map(async (tb) => {
+            let content: string
+
+            if (tb.name === 'listar_tarefas') {
+              const input = tb.input as { date: string }
+              const inicio = parseUTCDate(input.date)
+              const fim = new Date(inicio)
+              fim.setUTCDate(fim.getUTCDate() + 1)
+              const tarefas = await prisma.task.findMany({
+                where: { date: { gte: inicio, lt: fim } },
+                orderBy: [{ time: 'asc' }, { createdAt: 'asc' }],
+              })
+              content =
+                tarefas.length === 0
+                  ? 'Nenhuma tarefa encontrada.'
+                  : tarefas.map((t) => `[${t.id}] ${t.name}${t.time ? ` às ${t.time}` : ''} [${t.status}]`).join('\n')
+            } else {
+              // listar_tarefas_periodo
+              const input = tb.input as { date_inicio: string; date_fim: string; keyword?: string }
+              const inicio = parseUTCDate(input.date_inicio)
+              const fim = new Date(parseUTCDate(input.date_fim))
+              fim.setUTCDate(fim.getUTCDate() + 1)
+              const tarefas = await prisma.task.findMany({
+                where: {
+                  date: { gte: inicio, lt: fim },
+                  ...(input.keyword ? { name: { contains: input.keyword } } : {}),
+                },
+                orderBy: [{ date: 'asc' }, { time: 'asc' }, { createdAt: 'asc' }],
+              })
+              content =
+                tarefas.length === 0
+                  ? 'Nenhuma tarefa encontrada.'
+                  : tarefas
+                      .map((t) => {
+                        const dataStr = t.date.toISOString().slice(0, 10)
+                        return `[${t.id}] ${dataStr} ${t.name}${t.time ? ` às ${t.time}` : ''} [${t.status}]`
+                      })
+                      .join('\n')
+            }
+
+            return { type: 'tool_result' as const, tool_use_id: tb.id, content }
+          }),
+        )
 
         const response2 = await anthropic.messages.create({
           model: 'claude-sonnet-4-6',
@@ -440,12 +489,12 @@ Quando o utilizador partilhar dados de projetos, metas ou objetivos — mesmo qu
           messages: [
             ...historyMessages,
             { role: 'assistant', content: response.content },
-            { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolBlock.id, content: toolResult }] },
+            { role: 'user', content: toolResults },
           ],
           tools: TOOLS,
         })
         const bloco2 = response2.content.find((b) => b.type === 'text')
-        const reply = bloco2?.type === 'text' ? bloco2.text : toolResult
+        const reply = bloco2?.type === 'text' ? bloco2.text : 'Consulta concluída.'
         await prisma.message.create({ data: { conversationId, role: 'assistant', content: reply } })
         await actualizarConversa(conversationId, isPrimeira, anthropic, message)
         return ok({ reply, conversationId })
