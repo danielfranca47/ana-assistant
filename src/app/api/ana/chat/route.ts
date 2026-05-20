@@ -379,7 +379,9 @@ Para "listar_tarefas", usa sempre a data actual se o utilizador pedir "hoje".
 Ao chamar uma ferramenta de escrita (criar_tarefa, criar_multiplas_tarefas, criar_tarefa_recorrente, criar_evento, actualizar_tarefa, gerar_relatorio, registrar_contexto),
 inclui SEMPRE um bloco de texto ANTES da chamada de ferramenta a descrever o que vais fazer
 e a pedir confirmação ao utilizador. Chama a ferramenta no mesmo turno — o sistema trata da aprovação.
-Quando o utilizador partilhar informação sobre projetos, metas ou objetivos ainda não registada no contexto acima, chama imediatamente a ferramenta "registrar_contexto" no mesmo turno que o texto de confirmação.`
+REGRA CRÍTICA — FERRAMENTA registrar_contexto:
+Quando o utilizador partilhar dados de projetos, metas ou objetivos — mesmo que descrevendo vários de uma vez ou numa mensagem longa de contexto —, CHAMA OBRIGATORIAMENTE a ferramenta "registrar_contexto" no mesmo turno, com TODOS os dados fornecidos.
+É PROIBIDO responder com texto dizendo "vou registar", "registarei agora", "vou guardar" ou qualquer variação SEM ter chamado a ferramenta no mesmo turno. Responder apenas com texto sem chamar a ferramenta deixa os dados perdidos para sempre — isso é um erro crítico irrecuperável.`
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',

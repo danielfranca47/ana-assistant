@@ -6,6 +6,7 @@ import * as anaService from '@/services/ana'
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder'
 import ConversationMode from '@/components/ConversationMode'
 import { apiFetch } from '@/lib/apiFetch'
+import RegistrarContextoPreview, { type PreviewInput } from '@/components/chat/RegistrarContextoPreview'
 
 interface Mensagem {
   role: 'user' | 'assistant'
@@ -165,14 +166,14 @@ export default function ChatPage() {
     }
   }
 
-  async function confirmarAccao() {
+  async function confirmarAccao(inputOverride?: Record<string, unknown>) {
     if (!acaoPendente || !conversationId) return
     setExecutando(true)
     setErro(null)
     try {
       const result = await apiFetch.post<{ message: string }>('/api/ana/execute', {
         tool: acaoPendente.tool,
-        input: acaoPendente.input,
+        input: inputOverride ?? acaoPendente.input,
         conversationId,
       })
       const msg = result.data?.message ?? 'Acção executada com sucesso.'
@@ -438,22 +439,33 @@ export default function ChatPage() {
 
           {acaoPendente && !isProcessing && (
             <div className="flex justify-start">
-              <div className="flex gap-2 ml-1 mt-1">
-                <button
-                  onClick={confirmarAccao}
-                  disabled={executando}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-                >
-                  ✓ {executando ? 'A executar...' : 'Confirmar'}
-                </button>
-                <button
-                  onClick={cancelarAccao}
-                  disabled={executando}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-50 transition-colors"
-                >
-                  ✗ Cancelar
-                </button>
-              </div>
+              {acaoPendente.tool === 'registrar_contexto' ? (
+                <div className="ml-1 mt-1">
+                  <RegistrarContextoPreview
+                    input={acaoPendente.input as PreviewInput}
+                    onConfirm={(inputModificado) => confirmarAccao(inputModificado)}
+                    onCancel={cancelarAccao}
+                    executando={executando}
+                  />
+                </div>
+              ) : (
+                <div className="flex gap-2 ml-1 mt-1">
+                  <button
+                    onClick={() => confirmarAccao()}
+                    disabled={executando}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  >
+                    ✓ {executando ? 'A executar...' : 'Confirmar'}
+                  </button>
+                  <button
+                    onClick={cancelarAccao}
+                    disabled={executando}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-50 transition-colors"
+                  >
+                    ✗ Cancelar
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
