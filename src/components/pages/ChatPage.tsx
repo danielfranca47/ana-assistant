@@ -228,7 +228,15 @@ export default function ChatPage() {
   return (
     <div className="flex h-full" style={{ background: 'var(--ana-bg)' }}>
       {modoConversa && (
-        <ConversationMode onClose={() => setModoConversa(false)} />
+        <ConversationMode
+          conversationId={conversationId ?? undefined}
+          onClose={() => {
+            setModoConversa(false)
+            if (conversationId) {
+              carregarConversa(conversationId).then(() => carregarListaConversas())
+            }
+          }}
+        />
       )}
 
       {/* Overlay mobile */}

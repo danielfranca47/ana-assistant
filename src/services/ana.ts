@@ -8,10 +8,12 @@ export interface MensagemHistorico {
 export async function chat(
   message: string,
   history: MensagemHistorico[],
+  conversationId?: string,
 ): Promise<string> {
   const result = await apiFetch.post<{ reply: string }>('/api/ana/chat', {
     message,
     history,
+    ...(conversationId ? { conversationId } : {}),
   })
   if (!result.data) throw new Error(result.error ?? 'Erro inesperado')
   return result.data.reply

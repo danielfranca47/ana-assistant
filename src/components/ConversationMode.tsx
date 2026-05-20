@@ -33,9 +33,10 @@ const STATUS_COLOR: Record<Phase, string> = {
 
 interface Props {
   onClose: () => void
+  conversationId?: string
 }
 
-export default function ConversationMode({ onClose }: Props) {
+export default function ConversationMode({ onClose, conversationId }: Props) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [conversa, setConversa] = useState<Entrada[]>([])
   const [erro, setErro] = useState<string | null>(null)
@@ -224,7 +225,7 @@ export default function ConversationMode({ onClose }: Props) {
           ]
           syncConversa(novaConversa)
 
-          const reply = await anaService.chat(transcript, historicoParaChat)
+          const reply = await anaService.chat(transcript, historicoParaChat, conversationId)
           if (!isActiveRef.current) return
 
           syncConversa([...novaConversa, { role: 'assistant', content: reply }])
