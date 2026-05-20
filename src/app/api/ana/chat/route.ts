@@ -385,7 +385,7 @@ Quando o utilizador partilhar dados de projetos, metas ou objetivos — mesmo qu
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
+      max_tokens: 4096,
       system: systemPrompt,
       messages: historyMessages,
       tools: TOOLS,
@@ -416,7 +416,7 @@ Quando o utilizador partilhar dados de projetos, metas ou objetivos — mesmo qu
 
         const response2 = await anthropic.messages.create({
           model: 'claude-sonnet-4-6',
-          max_tokens: 1024,
+          max_tokens: 4096,
           system: systemPrompt,
           messages: [
             ...historyMessages,
