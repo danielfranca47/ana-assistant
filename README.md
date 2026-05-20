@@ -13,11 +13,11 @@ chaves de API — os seus dados ficam apenas no seu servidor pessoal.
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/SEU-USUARIO/ana-assistant)
 
-### Para utilizadores sem experiência técnica
+### Primeiros passos
 
-1. Clique no botão acima e crie uma conta gratuita no Vercel (se ainda não tiver).
-2. Siga as instruções até o deploy ficar concluído — demora cerca de 2 minutos.
-3. Abra o URL gerado, insira as suas chaves de API na página de configuração, e a Ana está pronta.
+1. Clique no botão Deploy acima e crie uma conta gratuita no Vercel (se ainda não tiver).
+2. Insira a sua chave Anthropic — obter em [console.anthropic.com](https://console.anthropic.com)
+3. Insira a sua chave OpenAI — obter em [platform.openai.com](https://platform.openai.com)
 
 ---
 
@@ -34,11 +34,16 @@ Insira as chaves na página `/setup` que aparece automaticamente na primeira vis
 
 ## O que a Ana faz
 
-- Rotina diária com timeline de tarefas
-- Calendário mensal e visão semanal
-- Chat por voz e texto com IA
-- Relatório diário com rebalanceamento de rotina por IA
-- Metas e preferências personalizadas
+- **Rotina diária** — criar, editar, reordenar (drag & drop) e filtrar tarefas por prioridade e categoria
+- **Calendário mensal** — navegação por mês, eventos visíveis nos dias, painel lateral com detalhes
+- **Visão semanal** — drag & drop de eventos, redimensionamento de duração e detecção de conflitos de horário
+- **Recorrência de eventos** — padrões diário, semanal, dias úteis ou personalizado; edição com âmbito (este / seguintes / todos)
+- **Tarefas vencidas** — marcação automática de atraso e painel de reagendamento
+- **Chat com a Ana** — por texto ou voz (Whisper); cria tarefas e eventos pelo chat com confirmação
+- **Relatório diário** — formulário de "fiz / não fiz", rebalanceamento de rotina por IA e histórico
+- **Metas semanais** — barra de progresso, incremento manual e reset automático toda a segunda-feira
+- **Sugestão inteligente de horário** — a Ana analisa os gaps do dia e recomenda o slot óptimo
+- **Preferências** — horário de trabalho, almoço, dias de folga e período de foco profundo
 
 ---
 
