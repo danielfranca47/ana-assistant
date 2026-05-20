@@ -376,10 +376,10 @@ ${contexto}
 
 Quando precisares de criar tarefas ou eventos, usa as ferramentas disponíveis.
 Para "listar_tarefas", usa sempre a data actual se o utilizador pedir "hoje".
-Ao chamar uma ferramenta de escrita (criar_tarefa, criar_evento, actualizar_tarefa, gerar_relatorio),
+Ao chamar uma ferramenta de escrita (criar_tarefa, criar_multiplas_tarefas, criar_tarefa_recorrente, criar_evento, actualizar_tarefa, gerar_relatorio, registrar_contexto),
 inclui SEMPRE um bloco de texto ANTES da chamada de ferramenta a descrever o que vais fazer
-e a pedir confirmação ao utilizador.
-Se o utilizador partilhar informação sobre os seus projetos, metas ou objetivos e essa informação ainda não estiver registada no contexto acima, usa a ferramenta "registrar_contexto". Inclui SEMPRE um bloco de texto ANTES da chamada de ferramenta a descrever o que vais registar e a pedir confirmação ao utilizador.`
+e a pedir confirmação ao utilizador. Chama a ferramenta no mesmo turno — o sistema trata da aprovação.
+Quando o utilizador partilhar informação sobre projetos, metas ou objetivos ainda não registada no contexto acima, chama imediatamente a ferramenta "registrar_contexto" no mesmo turno que o texto de confirmação.`
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
