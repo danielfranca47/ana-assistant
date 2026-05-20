@@ -67,17 +67,22 @@ enum EventCategory {
 }
 
 model Event {
-  id        String        @id @default(cuid())
-  name      String
-  date      DateTime
-  startTime String?       // HH:MM
-  endTime   String?       // HH:MM
-  category  EventCategory @default(pers)
-  notes     String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  name           String
+  date           DateTime
+  startTime      String?       // HH:MM
+  endTime        String?       // HH:MM
+  category       EventCategory @default(pers)
+  notes          String?
+  recurrence     String?       // null | "daily" | "weekly" | "weekdays" | "custom"
+  recurrenceDays String?       // JSON ex: "[1,3,5]" (0=Dom…6=Sáb)
+  recurrenceEnd  DateTime?     // data de fim da série
+  parentId       String?       // ID do evento-pai da série
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@index([date])
+  @@index([parentId])
 }
 
 model Goal {

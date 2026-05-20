@@ -1,5 +1,7 @@
 export type EventCategory = 'work' | 'meet' | 'pers' | 'break'
 
+export type RecurrenceScope = 'single' | 'following' | 'all'
+
 // Nomeado CalendarEvent para evitar conflito com o global Event do DOM
 export interface CalendarEvent {
   id: string
@@ -10,6 +12,10 @@ export interface CalendarEvent {
   endTime: string | null
   category: EventCategory
   notes: string | null
+  recurrence: string | null
+  recurrenceDays: string | null
+  recurrenceEnd: string | null
+  parentId: string | null
   createdAt: string
 }
 
@@ -20,6 +26,9 @@ export interface CreateEventInput {
   endTime?: string
   category?: EventCategory
   notes?: string
+  recurrence?: string
+  recurrenceDays?: string   // JSON ex: "[1,3,5]"
+  recurrenceEnd?: string    // YYYY-MM-DD
 }
 
 export interface UpdateEventInput {
@@ -29,4 +38,8 @@ export interface UpdateEventInput {
   endTime?: string
   category?: EventCategory
   notes?: string
+  recurrence?: string
+  recurrenceDays?: string
+  recurrenceEnd?: string
+  scope?: RecurrenceScope
 }

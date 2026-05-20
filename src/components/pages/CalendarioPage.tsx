@@ -3,8 +3,9 @@
 import { useState, type FormEvent } from 'react'
 import { useEvents } from '@/hooks/useEvents'
 import { useTasksRange } from '@/hooks/useTasksRange'
-import type { CalendarEvent, EventCategory, CreateEventInput, UpdateEventInput } from '@/types/event'
+import type { CalendarEvent, EventCategory, CreateEventInput, UpdateEventInput, RecurrenceScope } from '@/types/event'
 import EditPopover from '@/components/EditPopover'
+import RecurrenceFields from '@/components/RecurrenceFields'
 
 const MESES = [
   'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -69,6 +70,9 @@ interface FormState {
   endTime: string
   category: EventCategory
   notes: string
+  recurrence: string
+  recurrenceDays: number[]
+  recurrenceEnd: string
 }
 
 export default function CalendarioPage() {
@@ -79,6 +83,7 @@ export default function CalendarioPage() {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [form, setForm] = useState<FormState>({
     name: '', date: hoje(), startTime: '', endTime: '', category: 'pers', notes: '',
+    recurrence: '', recurrenceDays: [], recurrenceEnd: '',
   })
   const [editTarget, setEditTarget] = useState<{ item: CalendarEvent; position: { x: number; y: number } } | null>(null)
 
@@ -127,9 +132,14 @@ export default function CalendarioPage() {
       ...(form.startTime && { startTime: form.startTime }),
       ...(form.endTime && { endTime: form.endTime }),
       ...(form.notes && { notes: form.notes }),
+      ...(form.recurrence && {
+        recurrence: form.recurrence,
+        ...(form.recurrenceDays.length && { recurrenceDays: JSON.stringify(form.recurrenceDays) }),
+        ...(form.recurrenceEnd && { recurrenceEnd: form.recurrenceEnd }),
+      }),
     }
     await createEvent(input)
-    setForm({ name: '', date: hojeStr, startTime: '', endTime: '', category: 'pers', notes: '' })
+    setForm({ name: '', date: hojeStr, startTime: '', endTime: '', category: 'pers', notes: '', recurrence: '', recurrenceDays: [], recurrenceEnd: '' })
     setMostrarForm(false)
   }
 
@@ -399,6 +409,13 @@ export default function CalendarioPage() {
                   <option value="break">Pausa</option>
                 </select>
 
+                <RecurrenceFields
+                  recurrence={form.recurrence}
+                  recurrenceDays={form.recurrenceDays}
+                  recurrenceEnd={form.recurrenceEnd}
+                  onChange={(field, value) => setForm((f) => ({ ...f, [field]: value }))}
+                />
+
                 <textarea
                   placeholder="Notas (opcional)"
                   value={form.notes}
@@ -423,8 +440,8 @@ export default function CalendarioPage() {
             item={editTarget.item}
             type="event"
             position={editTarget.position}
-            onSave={async (dados) => updateEvent(editTarget.item.id, dados as UpdateEventInput)}
-            onDelete={async () => deleteEvent(editTarget.item.id)}
+            onSave={async (dados, scope) => updateEvent(editTarget.item.id, dados as UpdateEventInput, scope as RecurrenceScope | undefined)}
+            onDelete={async (scope) => deleteEvent(editTarget.item.id, scope as RecurrenceScope | undefined)}
             onClose={() => setEditTarget(null)}
           />
         )}

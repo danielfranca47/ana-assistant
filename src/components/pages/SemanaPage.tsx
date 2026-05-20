@@ -16,8 +16,9 @@ import {
 import { toast } from 'sonner'
 import { useEvents } from '@/hooks/useEvents'
 import { useTasksRange } from '@/hooks/useTasksRange'
-import type { CalendarEvent, EventCategory, CreateEventInput, UpdateEventInput } from '@/types/event'
+import type { CalendarEvent, EventCategory, CreateEventInput, UpdateEventInput, RecurrenceScope } from '@/types/event'
 import EditPopover from '@/components/EditPopover'
+import RecurrenceFields from '@/components/RecurrenceFields'
 
 const DIAS_ABREV = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const HORA_INICIO = 6
@@ -262,6 +263,9 @@ interface FormState {
   endTime: string
   category: EventCategory
   notes: string
+  recurrence: string
+  recurrenceDays: number[]
+  recurrenceEnd: string
 }
 
 // --- SemanaPage ---
@@ -272,6 +276,7 @@ export default function SemanaPage() {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [form, setForm] = useState<FormState>({
     name: '', date: hojeStr, startTime: '', endTime: '', category: 'pers', notes: '',
+    recurrence: '', recurrenceDays: [], recurrenceEnd: '',
   })
   const [editTarget, setEditTarget] = useState<{ item: CalendarEvent; position: { x: number; y: number } } | null>(null)
   const [dragActiveId, setDragActiveId] = useState<string | null>(null)
@@ -381,9 +386,14 @@ export default function SemanaPage() {
       ...(form.startTime && { startTime: form.startTime }),
       ...(form.endTime && { endTime: form.endTime }),
       ...(form.notes && { notes: form.notes }),
+      ...(form.recurrence && {
+        recurrence: form.recurrence,
+        ...(form.recurrenceDays.length && { recurrenceDays: JSON.stringify(form.recurrenceDays) }),
+        ...(form.recurrenceEnd && { recurrenceEnd: form.recurrenceEnd }),
+      }),
     }
     await createEvent(input)
-    setForm({ name: '', date: hojeStr, startTime: '', endTime: '', category: 'pers', notes: '' })
+    setForm({ name: '', date: hojeStr, startTime: '', endTime: '', category: 'pers', notes: '', recurrence: '', recurrenceDays: [], recurrenceEnd: '' })
     setMostrarForm(false)
   }
 
@@ -604,6 +614,12 @@ export default function SemanaPage() {
                     <option value="pers">Pessoal</option>
                     <option value="break">Pausa</option>
                   </select>
+                  <RecurrenceFields
+                    recurrence={form.recurrence}
+                    recurrenceDays={form.recurrenceDays}
+                    recurrenceEnd={form.recurrenceEnd}
+                    onChange={(field, value) => setForm((f) => ({ ...f, [field]: value }))}
+                  />
                   <textarea
                     placeholder="Notas (opcional)"
                     value={form.notes}
@@ -627,8 +643,8 @@ export default function SemanaPage() {
               item={editTarget.item}
               type="event"
               position={editTarget.position}
-              onSave={async (dados) => updateEvent(editTarget.item.id, dados as UpdateEventInput)}
-              onDelete={async () => deleteEvent(editTarget.item.id)}
+              onSave={async (dados, scope) => updateEvent(editTarget.item.id, dados as UpdateEventInput, scope as RecurrenceScope | undefined)}
+              onDelete={async (scope) => deleteEvent(editTarget.item.id, scope as RecurrenceScope | undefined)}
               onClose={() => setEditTarget(null)}
             />
           )}
