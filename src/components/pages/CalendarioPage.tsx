@@ -3,7 +3,8 @@
 import { useState, type FormEvent } from 'react'
 import { useEvents } from '@/hooks/useEvents'
 import { useTasksRange } from '@/hooks/useTasksRange'
-import type { CalendarEvent, EventCategory, CreateEventInput } from '@/types/event'
+import type { CalendarEvent, EventCategory, CreateEventInput, UpdateEventInput } from '@/types/event'
+import EditPopover from '@/components/EditPopover'
 
 const MESES = [
   'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -79,13 +80,19 @@ export default function CalendarioPage() {
   const [form, setForm] = useState<FormState>({
     name: '', date: hoje(), startTime: '', endTime: '', category: 'pers', notes: '',
   })
+  const [editTarget, setEditTarget] = useState<{ item: CalendarEvent; position: { x: number; y: number } } | null>(null)
+
+  function abrirEdit(ev: CalendarEvent, e: React.MouseEvent) {
+    e.stopPropagation()
+    setEditTarget({ item: ev, position: { x: e.clientX, y: e.clientY } })
+  }
 
   const from = primeiroDiaMes(year, month)
   const to = ultimoDiaMes(year, month)
   const hojeStr = hoje()
   const daqui30 = adicionarDias(hojeStr, 30)
 
-  const { events: eventosDoMes, createEvent, deleteEvent } = useEvents(from, to)
+  const { events: eventosDoMes, createEvent, updateEvent, deleteEvent } = useEvents(from, to)
   const { events: proxEventos, isLoading: carregandoProx } = useEvents(hojeStr, daqui30)
   const { tasks: tarefasDoMes } = useTasksRange(from, to)
 
@@ -306,6 +313,13 @@ export default function CalendarioPage() {
                           )}
                         </div>
                         <button
+                          onClick={(e) => abrirEdit(ev, e)}
+                          className="text-gray-300 hover:text-gray-600 transition-colors text-xs shrink-0"
+                          aria-label="Editar evento"
+                        >
+                          ✎
+                        </button>
+                        <button
                           onClick={() => void deleteEvent(ev.id)}
                           className="text-gray-300 hover:text-red-400 transition-colors text-xs shrink-0"
                           aria-label="Apagar evento"
@@ -402,6 +416,17 @@ export default function CalendarioPage() {
               </form>
             </div>
           </div>
+        )}
+
+        {editTarget && (
+          <EditPopover
+            item={editTarget.item}
+            type="event"
+            position={editTarget.position}
+            onSave={async (dados) => updateEvent(editTarget.item.id, dados as UpdateEventInput)}
+            onDelete={async () => deleteEvent(editTarget.item.id)}
+            onClose={() => setEditTarget(null)}
+          />
         )}
       </div>
     </div>

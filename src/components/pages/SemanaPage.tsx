@@ -3,7 +3,8 @@
 import { useState, type FormEvent } from 'react'
 import { useEvents } from '@/hooks/useEvents'
 import { useTasksRange } from '@/hooks/useTasksRange'
-import type { CalendarEvent, EventCategory, CreateEventInput } from '@/types/event'
+import type { CalendarEvent, EventCategory, CreateEventInput, UpdateEventInput } from '@/types/event'
+import EditPopover from '@/components/EditPopover'
 
 const DIAS_ABREV = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
@@ -73,11 +74,17 @@ export default function SemanaPage() {
   const [form, setForm] = useState<FormState>({
     name: '', date: hojeStr, startTime: '', endTime: '', category: 'pers', notes: '',
   })
+  const [editTarget, setEditTarget] = useState<{ item: CalendarEvent; position: { x: number; y: number } } | null>(null)
+
+  function abrirEdit(ev: CalendarEvent, e: React.MouseEvent) {
+    e.stopPropagation()
+    setEditTarget({ item: ev, position: { x: e.clientX, y: e.clientY } })
+  }
 
   const dias = diasDaSemana(semanaAtual)
   const sabado = dias[6]
 
-  const { events: eventos, createEvent, deleteEvent } = useEvents(semanaAtual, sabado)
+  const { events: eventos, createEvent, updateEvent, deleteEvent } = useEvents(semanaAtual, sabado)
   const { tasks: tarefasSemana } = useTasksRange(semanaAtual, sabado)
 
   function navegarSemana(delta: number) {
@@ -180,6 +187,13 @@ export default function SemanaPage() {
                     >
                       <div className="flex items-start justify-between gap-1">
                         <span className="font-medium truncate">{ev.name}</span>
+                        <button
+                          onClick={(e) => abrirEdit(ev, e)}
+                          className="opacity-40 hover:opacity-100 shrink-0"
+                          aria-label="Editar"
+                        >
+                          ✎
+                        </button>
                         <button
                           onClick={() => void deleteEvent(ev.id)}
                           className="opacity-40 hover:opacity-100 shrink-0"
@@ -303,6 +317,17 @@ export default function SemanaPage() {
               </form>
             </div>
           </div>
+        )}
+
+        {editTarget && (
+          <EditPopover
+            item={editTarget.item}
+            type="event"
+            position={editTarget.position}
+            onSave={async (dados) => updateEvent(editTarget.item.id, dados as UpdateEventInput)}
+            onDelete={async () => deleteEvent(editTarget.item.id)}
+            onClose={() => setEditTarget(null)}
+          />
         )}
       </div>
     </div>

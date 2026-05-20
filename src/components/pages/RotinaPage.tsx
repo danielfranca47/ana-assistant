@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from 'react'
 import { useTasks } from '@/hooks/useTasks'
-import type { Task, TaskPriority, TaskStatus } from '@/types/task'
+import type { Task, TaskPriority, TaskStatus, UpdateTaskInput } from '@/types/task'
+import EditPopover from '@/components/EditPopover'
 
 function hoje(): string {
   return new Date().toISOString().split('T')[0]
@@ -73,9 +74,15 @@ export default function RotinaPage() {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [form, setForm] = useState<FormState>(FORM_INICIAL)
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
+  const [editTarget, setEditTarget] = useState<{ item: Task; position: { x: number; y: number } } | null>(null)
 
   const { tasks, isLoading, error, isMutating, createTask, updateTask, deleteTask } =
     useTasks(dataSelecionada)
+
+  function abrirEdit(task: Task, e: React.MouseEvent) {
+    e.stopPropagation()
+    setEditTarget({ item: task, position: { x: e.clientX, y: e.clientY } })
+  }
 
   async function handleCriar(e: FormEvent) {
     e.preventDefault()
@@ -361,6 +368,13 @@ export default function RotinaPage() {
                 {/* Status + delete */}
                 <div className="flex items-center gap-2 shrink-0">
                   <button
+                    onClick={(e) => abrirEdit(task, e)}
+                    className="text-gray-300 hover:text-gray-600 transition-colors text-sm"
+                    aria-label="Editar tarefa"
+                  >
+                    ✎
+                  </button>
+                  <button
                     onClick={() => toggleStatus(task)}
                     className={`text-xs px-2 py-1 rounded-full transition-colors ${STATUS_COR[task.status]}`}
                   >
@@ -380,6 +394,17 @@ export default function RotinaPage() {
           </ul>
         )}
       </div>
+
+      {editTarget && (
+        <EditPopover
+          item={editTarget.item}
+          type="task"
+          position={editTarget.position}
+          onSave={async (dados) => updateTask(editTarget.item.id, dados as UpdateTaskInput)}
+          onDelete={async () => deleteTask(editTarget.item.id)}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
     </div>
   )
 }
