@@ -6,6 +6,7 @@ import { useTasksRange } from '@/hooks/useTasksRange'
 import type { CalendarEvent, EventCategory, CreateEventInput, UpdateEventInput, RecurrenceScope } from '@/types/event'
 import EditPopover from '@/components/EditPopover'
 import RecurrenceFields from '@/components/RecurrenceFields'
+import SlotSuggestionButton from '@/components/SlotSuggestionButton'
 
 const MESES = [
   'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -397,6 +398,16 @@ export default function CalendarioPage() {
                     />
                   </div>
                 </div>
+
+                {!form.startTime && !form.endTime && (
+                  <SlotSuggestionButton
+                    taskName={form.name}
+                    duration={60}
+                    priority="media"
+                    date={form.date}
+                    onAccept={(st, et) => setForm((f) => ({ ...f, startTime: st, endTime: et }))}
+                  />
+                )}
 
                 <select
                   value={form.category}

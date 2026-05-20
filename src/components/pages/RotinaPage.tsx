@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, type FormEvent, type CSSProperties } from 'react'
+import SlotSuggestionButton from '@/components/SlotSuggestionButton'
 import {
   DndContext,
   closestCenter,
@@ -682,6 +683,20 @@ export default function RotinaPage() {
                 />
               </div>
             </div>
+
+            {!form.time && (
+              <SlotSuggestionButton
+                taskName={form.name}
+                duration={form.duration ? parseInt(form.duration) : 60}
+                priority={form.priority}
+                date={dataSelecionada}
+                onAccept={(st, et) => {
+                  const [sh, sm] = st.split(':').map(Number)
+                  const [eh, em] = et.split(':').map(Number)
+                  setForm((f) => ({ ...f, time: st, duration: String((eh * 60 + em) - (sh * 60 + sm)) }))
+                }}
+              />
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>

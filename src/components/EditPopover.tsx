@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { Task, TaskPriority, UpdateTaskInput } from '@/types/task'
 import type { CalendarEvent, EventCategory, UpdateEventInput, RecurrenceScope } from '@/types/event'
 import RecurrenceFields from '@/components/RecurrenceFields'
+import SlotSuggestionButton from '@/components/SlotSuggestionButton'
 
 interface EditPopoverProps {
   item: Task | CalendarEvent
@@ -325,6 +326,36 @@ export default function EditPopover({ item, type, position, onSave, onDelete, on
                   />
                 </div>
               </div>
+            )}
+
+            {/* Sugestão de horário — tarefas sem hora definida */}
+            {isTask && !taskForm.time && (
+              <SlotSuggestionButton
+                taskName={taskForm.name}
+                duration={taskForm.duration ? parseInt(taskForm.duration) : 60}
+                priority={taskForm.priority}
+                date={taskForm.date}
+                onAccept={(st, et) => {
+                  setField('time', st)
+                  const [sh, sm] = st.split(':').map(Number)
+                  const [eh, em] = et.split(':').map(Number)
+                  setField('duration', String((eh * 60 + em) - (sh * 60 + sm)))
+                }}
+              />
+            )}
+
+            {/* Sugestão de horário — eventos sem início/fim definidos */}
+            {!isTask && !eventForm.startTime && !eventForm.endTime && (
+              <SlotSuggestionButton
+                taskName={eventForm.name}
+                duration={60}
+                priority="media"
+                date={eventForm.date}
+                onAccept={(st, et) => {
+                  setField('startTime', st)
+                  setField('endTime', et)
+                }}
+              />
             )}
 
             {/* Categoria */}
