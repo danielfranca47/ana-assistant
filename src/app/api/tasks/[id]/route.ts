@@ -1,7 +1,7 @@
 import { type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { ok, err } from '@/lib/api'
+import { ok, err, parseUTCDate } from '@/lib/api'
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -11,6 +11,7 @@ const updateSchema = z.object({
   priority: z.enum(['alta', 'media', 'baixa']).optional(),
   category: z.string().optional(),
   status: z.enum(['pending', 'done', 'current', 'late']).optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 })
 
 export async function PATCH(
@@ -30,7 +31,11 @@ export async function PATCH(
       return err('Tarefa não encontrada', 404)
     }
 
-    const updated = await prisma.task.update({ where: { id }, data: parsed.data })
+    const { date, ...rest } = parsed.data
+    const updated = await prisma.task.update({
+      where: { id },
+      data: { ...rest, ...(date ? { date: parseUTCDate(date) } : {}) },
+    })
     return ok(updated)
   } catch {
     return err('Erro interno', 500)

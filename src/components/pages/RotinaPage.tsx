@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, useCallback, type FormEvent } from 'react'
 import { useTasks } from '@/hooks/useTasks'
+import { tasksApi } from '@/services/tasks'
 import type { Task, TaskPriority, TaskStatus, UpdateTaskInput } from '@/types/task'
 import EditPopover from '@/components/EditPopover'
 
@@ -22,6 +23,38 @@ function formatarData(dateStr: string): string {
     day: 'numeric',
     month: 'long',
   })
+}
+
+function diasAtraso(dateStr: string): number {
+  const hojeDate = new Date()
+  hojeDate.setHours(0, 0, 0, 0)
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const data = new Date(y, m - 1, d)
+  data.setHours(0, 0, 0, 0)
+  return Math.max(0, Math.floor((hojeDate.getTime() - data.getTime()) / 86400000))
+}
+
+function descricaoAtraso(task: Task): string {
+  const dias = diasAtraso(task.date)
+  const hora = task.time ? `, ${task.time}` : ''
+  if (dias === 0) return `prevista para hoje${hora}`
+  if (dias === 1) return `prevista para ontem${hora}`
+  return `prevista há ${dias} dias${hora}`
+}
+
+function proximaHoraLivre(tarefasHoje: Task[]): string {
+  const agora = new Date()
+  let hora = agora.getHours() + 1
+  const horasOcupadas = new Set(
+    tarefasHoje
+      .filter((t) => t.time)
+      .map((t) => parseInt(t.time!.split(':')[0], 10)),
+  )
+  while (hora < 24) {
+    if (!horasOcupadas.has(hora)) return `${hora.toString().padStart(2, '0')}:00`
+    hora++
+  }
+  return '23:00'
 }
 
 const PRIORIDADE_COR: Record<TaskPriority, string> = {
@@ -51,6 +84,17 @@ const PROXIMO_STATUS: Record<TaskStatus, TaskStatus> = {
   late: 'pending',
 }
 
+type Filtro = 'todas' | 'pending' | 'done' | 'alta' | 'trabalho' | 'pessoal'
+
+const FILTROS: { id: Filtro; label: string }[] = [
+  { id: 'todas', label: 'Todas' },
+  { id: 'pending', label: 'Pendentes' },
+  { id: 'done', label: 'Concluídas' },
+  { id: 'alta', label: 'Alta prioridade' },
+  { id: 'trabalho', label: 'Trabalho' },
+  { id: 'pessoal', label: 'Pessoal' },
+]
+
 interface FormState {
   name: string
   time: string
@@ -69,6 +113,29 @@ const FORM_INICIAL: FormState = {
   description: '',
 }
 
+function aplicarFiltros(tasks: Task[], filtros: Set<Filtro>): Task[] {
+  if (filtros.has('todas') || filtros.size === 0) return tasks
+
+  const statusFiltros = Array.from(filtros).filter((f): f is TaskStatus =>
+    ['pending', 'done'].includes(f),
+  )
+  const prioridadeFiltros = Array.from(filtros).filter((f) => f === 'alta')
+  const categoriaFiltros = Array.from(filtros).filter((f) =>
+    ['trabalho', 'pessoal'].includes(f),
+  )
+
+  return tasks.filter((task) => {
+    const statusOk =
+      statusFiltros.length === 0 || statusFiltros.includes(task.status as TaskStatus)
+    const prioridadeOk =
+      prioridadeFiltros.length === 0 || task.priority === 'alta'
+    const categoriaOk =
+      categoriaFiltros.length === 0 ||
+      categoriaFiltros.includes((task.category?.toLowerCase() ?? '') as Filtro)
+    return statusOk && prioridadeOk && categoriaOk
+  })
+}
+
 export default function RotinaPage() {
   const [dataSelecionada, setDataSelecionada] = useState(hoje())
   const [mostrarForm, setMostrarForm] = useState(false)
@@ -76,8 +143,45 @@ export default function RotinaPage() {
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
   const [editTarget, setEditTarget] = useState<{ item: Task; position: { x: number; y: number } } | null>(null)
 
+  // Filtros
+  const [filtrosAtivos, setFiltrosAtivos] = useState<Set<Filtro>>(new Set(['todas']))
+
+  // Tarefas em atraso
+  const [tarefasAtrasadas, setTarefasAtrasadas] = useState<Task[]>([])
+  const [secaoAtrasadasAberta, setSecaoAtrasadasAberta] = useState(true)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+
   const { tasks, isLoading, error, isMutating, createTask, updateTask, deleteTask } =
     useTasks(dataSelecionada)
+
+  const carregarAtrasadas = useCallback(async () => {
+    await tasksApi.marcarAtrasadas()
+    const res = await tasksApi.listarAtrasadas()
+    if (res.data) setTarefasAtrasadas(res.data.tasks)
+  }, [])
+
+  useEffect(() => {
+    void carregarAtrasadas()
+    const intervalo = setInterval(() => void carregarAtrasadas(), 5 * 60 * 1000)
+    return () => clearInterval(intervalo)
+  }, [carregarAtrasadas])
+
+  function toggleFiltro(filtro: Filtro) {
+    setFiltrosAtivos((prev) => {
+      const next = new Set(prev)
+      if (filtro === 'todas') {
+        return new Set(['todas'])
+      }
+      next.delete('todas')
+      if (next.has(filtro)) {
+        next.delete(filtro)
+        if (next.size === 0) return new Set(['todas'])
+      } else {
+        next.add(filtro)
+      }
+      return next
+    })
+  }
 
   function abrirEdit(task: Task, e: React.MouseEvent) {
     e.stopPropagation()
@@ -109,7 +213,7 @@ export default function RotinaPage() {
   }
 
   function toggleExpandido(id: string) {
-    setExpandidos(prev => {
+    setExpandidos((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -117,9 +221,104 @@ export default function RotinaPage() {
     })
   }
 
+  async function reagendarParaHoje(task: Task) {
+    const horaLivre = proximaHoraLivre(tasks)
+    const res = await tasksApi.atualizar(task.id, {
+      date: hoje(),
+      time: horaLivre,
+      status: 'pending',
+    })
+    if (!res.error) {
+      setTarefasAtrasadas((prev) => prev.filter((t) => t.id !== task.id))
+    }
+  }
+
+  async function concluirAtrasada(task: Task) {
+    const res = await tasksApi.atualizar(task.id, { status: 'done' })
+    if (!res.error) {
+      setTarefasAtrasadas((prev) => prev.filter((t) => t.id !== task.id))
+    }
+  }
+
+  async function deletarAtrasada(id: string) {
+    if (confirmDeleteId !== id) {
+      setConfirmDeleteId(id)
+      return
+    }
+    const res = await tasksApi.deletar(id)
+    if (!res.error) {
+      setTarefasAtrasadas((prev) => prev.filter((t) => t.id !== id))
+    }
+    setConfirmDeleteId(null)
+  }
+
+  const tarefasFiltradas = aplicarFiltros(tasks, filtrosAtivos)
+
   return (
     <div className="overflow-y-auto h-full" style={{ background: 'var(--ana-bg)' }}>
       <div className="max-w-2xl mx-auto px-4 py-8">
+
+        {/* Secção de tarefas em atraso */}
+        {tarefasAtrasadas.length > 0 && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-xl overflow-hidden">
+            <button
+              onClick={() => setSecaoAtrasadasAberta((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors"
+            >
+              <span>⚠️ Em atraso ({tarefasAtrasadas.length})</span>
+              <span className="text-xs text-red-400">{secaoAtrasadasAberta ? '▴' : '▾'}</span>
+            </button>
+
+            {secaoAtrasadasAberta && (
+              <ul className="divide-y divide-red-100">
+                {tarefasAtrasadas.map((task) => {
+                  const dias = diasAtraso(task.date)
+                  const emConfirmacao = confirmDeleteId === task.id
+                  return (
+                    <li key={task.id} className="px-4 py-3 flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{task.name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{descricaoAtraso(task)}</p>
+                      </div>
+
+                      {dias > 0 && (
+                        <span className="shrink-0 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                          {dias} {dias === 1 ? 'dia' : 'dias'}
+                        </span>
+                      )}
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => void reagendarParaHoje(task)}
+                          className="text-xs bg-gray-900 text-white px-2 py-1 rounded-lg hover:bg-gray-700 transition-colors whitespace-nowrap"
+                        >
+                          Reagendar
+                        </button>
+                        <button
+                          onClick={() => void concluirAtrasada(task)}
+                          className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-lg hover:bg-green-200 transition-colors"
+                        >
+                          Concluída
+                        </button>
+                        <button
+                          onClick={() => void deletarAtrasada(task.id)}
+                          className={`text-xs px-2 py-1 rounded-lg transition-colors ${
+                            emConfirmacao
+                              ? 'bg-red-600 text-white hover:bg-red-700'
+                              : 'text-gray-400 hover:text-red-500'
+                          }`}
+                        >
+                          {emConfirmacao ? 'Confirmar?' : '✕'}
+                        </button>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+
         {/* Navegação de data */}
         <div className="flex items-center justify-between mb-6">
           <button
@@ -151,9 +350,33 @@ export default function RotinaPage() {
           </button>
         </div>
 
-        {/* Cabeçalho com botão */}
+        {/* Filtros rápidos */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {FILTROS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => toggleFiltro(f.id)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                filtrosAtivos.has(f.id)
+                  ? 'bg-gray-900 text-white border-gray-900'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Cabeçalho com botão e contador */}
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-semibold text-gray-900">Rotina</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold text-gray-900">Rotina</h1>
+            {!isLoading && tasks.length > 0 && (
+              <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                {tarefasFiltradas.length} {tarefasFiltradas.length === 1 ? 'tarefa' : 'tarefas'}
+              </span>
+            )}
+          </div>
           <button
             onClick={() => setMostrarForm(!mostrarForm)}
             className="bg-gray-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
@@ -190,17 +413,13 @@ export default function RotinaPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">
-                  Duração (min)
-                </label>
+                <label className="block text-xs text-gray-500 mb-1">Duração (min)</label>
                 <input
                   type="number"
                   min={1}
                   placeholder="30"
                   value={form.duration}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, duration: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, duration: e.target.value }))}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500"
                 />
               </div>
@@ -212,10 +431,7 @@ export default function RotinaPage() {
                 <select
                   value={form.priority}
                   onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      priority: e.target.value as TaskPriority,
-                    }))
+                    setForm((f) => ({ ...f, priority: e.target.value as TaskPriority }))
                   }
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500"
                 >
@@ -230,9 +446,7 @@ export default function RotinaPage() {
                   type="text"
                   placeholder="Ex: trabalho"
                   value={form.category}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, category: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500"
                 />
               </div>
@@ -262,7 +476,7 @@ export default function RotinaPage() {
         {/* Skeleton loader */}
         {isLoading && (
           <ul className="space-y-2">
-            {[1, 2, 3].map(i => (
+            {[1, 2, 3].map((i) => (
               <li
                 key={i}
                 className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-start gap-3 animate-pulse"
@@ -281,22 +495,22 @@ export default function RotinaPage() {
 
         {/* Estado de erro */}
         {!isLoading && error !== null && (
-          <div className="text-center py-12 text-red-500 text-sm">
-            {error}
-          </div>
+          <div className="text-center py-12 text-red-500 text-sm">{error}</div>
         )}
 
         {/* Lista vazia */}
-        {!isLoading && error === null && tasks.length === 0 && (
+        {!isLoading && error === null && tarefasFiltradas.length === 0 && (
           <div className="text-center py-12 text-gray-400 text-sm">
-            Nenhuma tarefa para este dia.
+            {tasks.length === 0
+              ? 'Nenhuma tarefa para este dia.'
+              : 'Nenhuma tarefa corresponde aos filtros activos.'}
           </div>
         )}
 
         {/* Lista de tarefas */}
-        {!isLoading && error === null && tasks.length > 0 && (
+        {!isLoading && error === null && tarefasFiltradas.length > 0 && (
           <ul className="space-y-2">
-            {tasks.map((task) => (
+            {tarefasFiltradas.map((task) => (
               <li
                 key={task.id}
                 className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-start gap-3"
@@ -313,7 +527,13 @@ export default function RotinaPage() {
                 >
                   {task.status === 'done' && (
                     <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                      <path d="M1 4L3.5 6.5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path
+                        d="M1 4L3.5 6.5L9 1"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     </svg>
                   )}
                 </button>
@@ -335,9 +555,7 @@ export default function RotinaPage() {
 
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {task.duration && (
-                      <span className="text-xs text-gray-400">
-                        {task.duration}min
-                      </span>
+                      <span className="text-xs text-gray-400">{task.duration}min</span>
                     )}
                     {task.category && (
                       <span className="text-xs text-gray-400">{task.category}</span>
@@ -365,7 +583,7 @@ export default function RotinaPage() {
                   )}
                 </div>
 
-                {/* Status + delete */}
+                {/* Status + acções */}
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={(e) => abrirEdit(task, e)}
@@ -380,7 +598,6 @@ export default function RotinaPage() {
                   >
                     {STATUS_LABEL[task.status]}
                   </button>
-
                   <button
                     onClick={() => void deleteTask(task.id)}
                     className="text-gray-300 hover:text-red-400 transition-colors text-sm"

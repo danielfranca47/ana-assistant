@@ -34,4 +34,5 @@ export interface UpdateTaskInput {
   priority?: TaskPriority
   category?: string
   status?: TaskStatus
+  date?: string
 }

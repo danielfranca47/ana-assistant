@@ -16,4 +16,10 @@ export const tasksApi = {
 
   deletar: (id: string) =>
     apiFetch.delete(`/api/tasks/${id}`),
+
+  marcarAtrasadas: () =>
+    apiFetch.post<{ updated: number }>('/api/tasks/mark-overdue', {}),
+
+  listarAtrasadas: () =>
+    apiFetch.get<{ tasks: Task[] }>('/api/tasks/overdue'),
 }
