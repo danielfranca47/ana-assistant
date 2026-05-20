@@ -20,6 +20,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = params
+    const scope = request.nextUrl.searchParams.get('scope') ?? 'single'
     const body = await request.json()
     const parsed = updateSchema.safeParse(body)
     if (!parsed.success) {
@@ -32,10 +33,31 @@ export async function PATCH(
     }
 
     const { date, ...rest } = parsed.data
-    const updated = await prisma.task.update({
-      where: { id },
-      data: { ...rest, ...(date ? { date: parseUTCDate(date) } : {}) },
-    })
+    const updateData = { ...rest, ...(date ? { date: parseUTCDate(date) } : {}) }
+
+    if (scope === 'single' || !task.parentId) {
+      const updated = await prisma.task.update({ where: { id }, data: updateData })
+      return ok(updated)
+    }
+
+    const rootId = task.parentId
+    if (scope === 'all') {
+      await prisma.task.updateMany({
+        where: { OR: [{ id: rootId }, { parentId: rootId }] },
+        data: rest, // não alterar date em cascata
+      })
+    } else {
+      // following: este + todos com mesmo parentId e data >= esta tarefa
+      await prisma.task.updateMany({
+        where: {
+          OR: [{ id: rootId }, { parentId: rootId }],
+          date: { gte: task.date },
+        },
+        data: rest,
+      })
+    }
+
+    const updated = await prisma.task.findUnique({ where: { id } })
     return ok(updated)
   } catch {
     return err('Erro interno', 500)
@@ -43,17 +65,38 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } },
 ) {
   try {
     const { id } = params
+    const scope = request.nextUrl.searchParams.get('scope') ?? 'single'
+
     const task = await prisma.task.findUnique({ where: { id } })
     if (!task) {
       return err('Tarefa não encontrada', 404)
     }
 
-    await prisma.task.delete({ where: { id } })
+    if (scope === 'single' || !task.parentId) {
+      await prisma.task.delete({ where: { id } })
+      return ok(null)
+    }
+
+    const rootId = task.parentId
+    if (scope === 'all') {
+      await prisma.task.deleteMany({
+        where: { OR: [{ id: rootId }, { parentId: rootId }] },
+      })
+    } else {
+      // following
+      await prisma.task.deleteMany({
+        where: {
+          OR: [{ id: rootId }, { parentId: rootId }],
+          date: { gte: task.date },
+        },
+      })
+    }
+
     return ok(null)
   } catch {
     return err('Erro interno', 500)

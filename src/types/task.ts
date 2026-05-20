@@ -12,6 +12,7 @@ export interface Task {
   category: string | null
   status: TaskStatus
   date: string
+  parentId: string | null
   createdAt: string
 }
 

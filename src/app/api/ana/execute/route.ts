@@ -153,11 +153,20 @@ export async function POST(request: NextRequest) {
 
       if (datas.length === 0) return err('Nenhum dia válido no intervalo especificado', 422)
 
-      const criadas = await Promise.all(
-        datas.map((date) =>
-          prisma.task.create({ data: { name, time, duration, priority, category, date } })
+      // Criar primeiro elemento para obter o id que serve de parentId do grupo
+      const primeiro = await prisma.task.create({
+        data: { name, time, duration, priority, category, date: datas[0] },
+      })
+      const grupoId = primeiro.id
+      // Auto-referenciar o primeiro como parte da série
+      await prisma.task.update({ where: { id: grupoId }, data: { parentId: grupoId } })
+
+      const restantes = await Promise.all(
+        datas.slice(1).map((date) =>
+          prisma.task.create({ data: { name, time, duration, priority, category, date, parentId: grupoId } })
         )
       )
+      const criadas = [{ ...primeiro, parentId: grupoId }, ...restantes]
       const message = `Tarefa "${name}" criada para ${criadas.length} dias (de ${data_inicio} a ${data_fim}).`
       await salvarMensagemAna(conversationId, message)
       return ok({ success: true, result: criadas, message })

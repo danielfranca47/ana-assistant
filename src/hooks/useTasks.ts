@@ -40,6 +40,7 @@ export function useTasks(date: string) {
       category: dados.category ?? null,
       status: dados.status ?? 'pending',
       date: dados.date,
+      parentId: null,
       createdAt: new Date().toISOString(),
     }
     setTasks(prev => [...prev, tempTask])
@@ -54,23 +55,23 @@ export function useTasks(date: string) {
     }
   }
 
-  async function updateTask(id: string, dados: UpdateTaskInput): Promise<void> {
+  async function updateTask(id: string, dados: UpdateTaskInput, scope?: string): Promise<void> {
     const anterior = tasks.find(t => t.id === id)
     if (!anterior) return
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...dados } : t))
-    const result = await tasksApi.atualizar(id, dados)
+    const result = await tasksApi.atualizar(id, dados, scope)
     if (!result.data) {
       setTasks(prev => prev.map(t => t.id === id ? anterior : t))
       toast.error('Não foi possível actualizar a tarefa')
     }
   }
 
-  async function deleteTask(id: string): Promise<void> {
+  async function deleteTask(id: string, scope?: string): Promise<void> {
     const anterior = tasks.find(t => t.id === id)
     if (!anterior) return
     const idxAnterior = tasks.findIndex(t => t.id === id)
     setTasks(prev => prev.filter(t => t.id !== id))
-    const result = await tasksApi.deletar(id)
+    const result = await tasksApi.deletar(id, scope)
     if (result.error !== null) {
       setTasks(prev => {
         const copy = [...prev]

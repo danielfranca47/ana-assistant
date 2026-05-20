@@ -95,7 +95,10 @@ export default function EditPopover({ item, type, position, onSave, onDelete, on
   const popoverRef = useRef<HTMLDivElement>(null)
 
   const ev = item as CalendarEvent
-  const isRecurring = type === 'event' && Boolean(ev.recurrence || ev.parentId)
+  const isRecurring =
+    type === 'event'
+      ? Boolean(ev.recurrence || ev.parentId)
+      : Boolean((item as Task).parentId)
 
   useEffect(() => {
     function handleMouseDown(e: MouseEvent) {
@@ -214,19 +217,19 @@ export default function EditPopover({ item, type, position, onSave, onDelete, on
               onClick={() => scopeDialog === 'save' ? void handleSave('single') : void handleDelete('single')}
               className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-50 border border-gray-100 transition-colors"
             >
-              Só este evento
+              {isTask ? 'Só esta tarefa' : 'Só este evento'}
             </button>
             <button
               onClick={() => scopeDialog === 'save' ? void handleSave('following') : void handleDelete('following')}
               className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-50 border border-gray-100 transition-colors"
             >
-              Este e os seguintes
+              {isTask ? 'Esta e as seguintes' : 'Este e os seguintes'}
             </button>
             <button
               onClick={() => scopeDialog === 'save' ? void handleSave('all') : void handleDelete('all')}
               className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-50 border border-gray-100 transition-colors"
             >
-              Todos da série
+              Todas da série
             </button>
           </div>
           <button

@@ -11,11 +11,11 @@ export const tasksApi = {
   criar: (dados: CreateTaskInput) =>
     apiFetch.post<Task>('/api/tasks', dados),
 
-  atualizar: (id: string, dados: UpdateTaskInput) =>
-    apiFetch.patch<Task>(`/api/tasks/${id}`, dados),
+  atualizar: (id: string, dados: UpdateTaskInput, scope?: string) =>
+    apiFetch.patch<Task>(`/api/tasks/${id}${scope ? `?scope=${scope}` : ''}`, dados),
 
-  deletar: (id: string) =>
-    apiFetch.delete(`/api/tasks/${id}`),
+  deletar: (id: string, scope?: string) =>
+    apiFetch.delete(`/api/tasks/${id}${scope ? `?scope=${scope}` : ''}`),
 
   marcarAtrasadas: () =>
     apiFetch.post<{ updated: number }>('/api/tasks/mark-overdue', {}),

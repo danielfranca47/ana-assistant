@@ -201,8 +201,8 @@ export default function CalendarioPage() {
   }
 
   // Mutações de tarefas
-  async function handleDeleteTask(id: string) {
-    await tasksApi.deletar(id)
+  async function handleDeleteTask(id: string, scope?: string) {
+    await tasksApi.deletar(id, scope)
     setTaskOverrides((prev) => ({ ...prev, [id]: { _deleted: true } }))
     setExtraTasks((prev) => prev.filter((t) => t.id !== id))
   }
@@ -805,7 +805,7 @@ export default function CalendarioPage() {
             position={editTarget.position}
             onSave={async (dados, scope) => {
               if (editTarget.type === 'task') {
-                const res = await tasksApi.atualizar(editTarget.item.id, dados as UpdateTaskInput)
+                const res = await tasksApi.atualizar(editTarget.item.id, dados as UpdateTaskInput, scope)
                 if (res.data) {
                   setTaskOverrides((prev) => ({
                     ...prev,
@@ -825,7 +825,7 @@ export default function CalendarioPage() {
             }}
             onDelete={async (scope) => {
               if (editTarget.type === 'task') {
-                await handleDeleteTask(editTarget.item.id)
+                await handleDeleteTask(editTarget.item.id, scope)
               } else {
                 await deleteEvent(editTarget.item.id, scope as RecurrenceScope | undefined)
               }

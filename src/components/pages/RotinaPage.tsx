@@ -818,8 +818,8 @@ export default function RotinaPage() {
           item={editTarget.item}
           type="task"
           position={editTarget.position}
-          onSave={async (dados) => updateTask(editTarget.item.id, dados as UpdateTaskInput)}
-          onDelete={async () => deleteTask(editTarget.item.id)}
+          onSave={async (dados, scope) => updateTask(editTarget.item.id, dados as UpdateTaskInput, scope)}
+          onDelete={async (scope) => deleteTask(editTarget.item.id, scope)}
           onClose={() => setEditTarget(null)}
         />
       )}
