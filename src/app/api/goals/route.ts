@@ -3,44 +3,43 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { ok, err } from '@/lib/api'
 
-interface Meta {
-  id: string
-  name: string
-  targetPct: number
-}
-
-async function lerMetas(): Promise<{ prefs: { id: string } | null; metas: Meta[] }> {
-  const prefs = await prisma.userPreferences.findFirst()
-  if (!prefs) return { prefs: null, metas: [] }
-  try {
-    const metas = JSON.parse(prefs.goalsJson) as Meta[]
-    return { prefs, metas }
-  } catch {
-    return { prefs, metas: [] }
-  }
-}
-
-async function persistirMetas(prefsId: string | null, metas: Meta[]) {
-  const goalsJson = JSON.stringify(metas)
-  if (prefsId) {
-    await prisma.userPreferences.update({ where: { id: prefsId }, data: { goalsJson } })
-  } else {
-    await prisma.userPreferences.create({ data: { goalsJson } })
-  }
+function getWeekStart(): Date {
+  const now = new Date()
+  const day = now.getUTCDay() // 0=Dom ... 6=Sáb
+  const diff = (day === 0 ? -6 : 1 - day) // ajuste para segunda-feira
+  const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + diff))
+  return weekStart
 }
 
 export async function GET() {
   try {
-    const { metas } = await lerMetas()
-    return ok(metas)
+    const weekStart = getWeekStart()
+    const goals = await prisma.goal.findMany({ orderBy: { createdAt: 'asc' } })
+
+    const toReset = goals.filter((g) => g.weekStartDate < weekStart)
+    if (toReset.length > 0) {
+      await Promise.all(
+        toReset.map((g) =>
+          prisma.goal.update({
+            where: { id: g.id },
+            data: { currentValue: 0, weekStartDate: weekStart },
+          }),
+        ),
+      )
+      const resetado = await prisma.goal.findMany({ orderBy: { createdAt: 'asc' } })
+      return ok(resetado)
+    }
+
+    return ok(goals)
   } catch {
-    return err('Erro ao ler metas', 500)
+    return err('Erro ao listar metas', 500)
   }
 }
 
 const postSchema = z.object({
-  name:      z.string().min(1),
-  targetPct: z.number().int().min(0).max(100).optional().default(0),
+  name:        z.string().min(1),
+  targetValue: z.number().positive(),
+  unit:        z.string().min(1),
 })
 
 export async function POST(request: NextRequest) {
@@ -51,16 +50,18 @@ export async function POST(request: NextRequest) {
       return err(parsed.error.issues[0]?.message ?? 'Dados inválidos', 422)
     }
 
-    const { prefs, metas } = await lerMetas()
-    const nova: Meta = {
-      id:        crypto.randomUUID(),
-      name:      parsed.data.name,
-      targetPct: parsed.data.targetPct,
-    }
-    const novasMetas = [...metas, nova]
-    await persistirMetas(prefs?.id ?? null, novasMetas)
-    return ok(nova, 201)
+    const weekStart = getWeekStart()
+    const goal = await prisma.goal.create({
+      data: {
+        name:         parsed.data.name,
+        targetValue:  parsed.data.targetValue,
+        unit:         parsed.data.unit,
+        currentValue: 0,
+        weekStartDate: weekStart,
+      },
+    })
+    return ok(goal, 201)
   } catch {
-    return err('Erro ao adicionar meta', 500)
+    return err('Erro ao criar meta', 500)
   }
 }

@@ -195,7 +195,11 @@ async function buscarContextoDia(): Promise<string> {
   const proximosSete = new Date(inicioHoje)
   proximosSete.setUTCDate(proximosSete.getUTCDate() + 7)
 
-  const [tarefas, eventos, prefs, projetos, objetivos] = await Promise.all([
+  const weekDay = hoje.getUTCDay()
+  const diffToMon = weekDay === 0 ? -6 : 1 - weekDay
+  const weekStart = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), hoje.getUTCDate() + diffToMon))
+
+  const [tarefas, eventos, prefs, projetos, objetivos, metas] = await Promise.all([
     prisma.task.findMany({
       where: { date: { gte: inicioHoje, lt: fimHoje } },
       orderBy: [{ time: 'asc' }, { createdAt: 'asc' }],
@@ -207,6 +211,12 @@ async function buscarContextoDia(): Promise<string> {
     prisma.userPreferences.findFirst(),
     prisma.project.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.objective.findMany({ where: { status: 'active' }, orderBy: { createdAt: 'asc' } }),
+    prisma.goal.findMany({ orderBy: { createdAt: 'asc' } }).then((goals) =>
+      goals.map((g) => ({
+        ...g,
+        currentValue: g.weekStartDate < weekStart ? 0 : g.currentValue,
+      })),
+    ),
   ])
 
   const linhasTarefas =
@@ -278,7 +288,16 @@ async function buscarContextoDia(): Promise<string> {
     linhasObjetivos = `\n\n## Objetivos do utilizador:\n${linhas}`
   }
 
-  return `## Tarefas de hoje (${hojeStr}):\n${linhasTarefas}\n\n## Eventos dos próximos 7 dias:\n${linhasEventos}${linhasPrefs}${linhasProjetos}${linhasObjetivos}`
+  let linhasMetas = ''
+  if (metas.length > 0) {
+    const linhas = metas.map((g) => {
+      const pct = g.targetValue > 0 ? Math.round((g.currentValue / g.targetValue) * 100) : 0
+      return `  - ${g.name}: ${g.currentValue}/${g.targetValue} ${g.unit} (${pct}%)`
+    }).join('\n')
+    linhasMetas = `\n\n## Metas semanais do utilizador:\n${linhas}`
+  }
+
+  return `## Tarefas de hoje (${hojeStr}):\n${linhasTarefas}\n\n## Eventos dos próximos 7 dias:\n${linhasEventos}${linhasPrefs}${linhasProjetos}${linhasObjetivos}${linhasMetas}`
 }
 
 async function gerarTitulo(anthropic: Anthropic, mensagem: string): Promise<string> {

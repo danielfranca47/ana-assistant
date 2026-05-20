@@ -15,6 +15,15 @@ interface Prefs {
   offDays:       string
 }
 
+interface Goal {
+  id:           string
+  name:         string
+  targetValue:  number
+  currentValue: number
+  unit:         string
+  weekStartDate: string
+}
+
 const PREFS_DEFAULT: Prefs = {
   workStart:  '08:00',
   workEnd:    '18:00',
@@ -124,6 +133,364 @@ const timeInputStyle: React.CSSProperties = {
   width:        90,
 }
 
+const inputStyle: React.CSSProperties = {
+  background:   'transparent',
+  border:       '0.5px solid var(--ana-border)',
+  borderRadius: 4,
+  padding:      '4px 8px',
+  fontSize:     12,
+  color:        'var(--ana-text)',
+  fontFamily:   'var(--font-dm-sans), sans-serif',
+  outline:      'none',
+  width:        '100%',
+  boxSizing:    'border-box',
+}
+
+function ProgressBar({ pct }: { pct: number }) {
+  const clamped = Math.min(100, Math.max(0, pct))
+  return (
+    <div style={{
+      height:       5,
+      background:   'var(--ana-border)',
+      borderRadius: 3,
+      overflow:     'hidden',
+      flex:         1,
+    }}>
+      <div style={{
+        width:        `${clamped}%`,
+        height:       '100%',
+        background:   clamped >= 100 ? 'var(--ana-success, #4ade80)' : 'var(--ana-accent)',
+        borderRadius: 3,
+        transition:   'width 0.3s ease',
+      }} />
+    </div>
+  )
+}
+
+function GoalItem({
+  goal,
+  onDelete,
+  onIncrement,
+}: {
+  goal:        Goal
+  onDelete:    (id: string) => void
+  onIncrement: (id: string, value: number) => void
+}) {
+  const [showInput, setShowInput]     = useState(false)
+  const [inputVal,  setInputVal]      = useState('')
+  const [confirmar, setConfirmar]     = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const pct = goal.targetValue > 0
+    ? Math.round((goal.currentValue / goal.targetValue) * 100)
+    : 0
+
+  function handleIncrementSubmit() {
+    const delta = parseFloat(inputVal.replace(',', '.'))
+    if (isNaN(delta) || delta <= 0) return
+    onIncrement(goal.id, goal.currentValue + delta)
+    setShowInput(false)
+    setInputVal('')
+  }
+
+  useEffect(() => {
+    if (showInput) inputRef.current?.focus()
+  }, [showInput])
+
+  return (
+    <div style={{ padding: '10px 0', borderBottom: '0.5px solid var(--ana-border)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 12, color: 'var(--ana-text)', flex: 1, fontWeight: 500 }}>
+          {goal.name}
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--ana-muted)', whiteSpace: 'nowrap' }}>
+          {pct}% — {goal.currentValue}{goal.unit} de {goal.targetValue}{goal.unit}
+        </span>
+        <button
+          title="Incrementar progresso"
+          onClick={() => setShowInput((v) => !v)}
+          style={{
+            width:        20,
+            height:       20,
+            borderRadius: '50%',
+            border:       '0.5px solid var(--ana-border)',
+            background:   'transparent',
+            color:        'var(--ana-accent)',
+            cursor:       'pointer',
+            fontSize:     14,
+            lineHeight:   '1',
+            display:      'flex',
+            alignItems:   'center',
+            justifyContent: 'center',
+            flexShrink:   0,
+          }}
+        >+</button>
+        {confirmar ? (
+          <button
+            title="Confirmar eliminação"
+            onClick={() => onDelete(goal.id)}
+            style={{
+              width:        20,
+              height:       20,
+              borderRadius: '50%',
+              border:       '0.5px solid #ef4444',
+              background:   '#ef444420',
+              color:        '#ef4444',
+              cursor:       'pointer',
+              fontSize:     11,
+              display:      'flex',
+              alignItems:   'center',
+              justifyContent: 'center',
+              flexShrink:   0,
+            }}
+          >✓</button>
+        ) : (
+          <button
+            title="Apagar meta"
+            onClick={() => setConfirmar(true)}
+            onBlur={() => setTimeout(() => setConfirmar(false), 200)}
+            style={{
+              width:        20,
+              height:       20,
+              borderRadius: '50%',
+              border:       '0.5px solid var(--ana-border)',
+              background:   'transparent',
+              color:        'var(--ana-muted)',
+              cursor:       'pointer',
+              fontSize:     13,
+              display:      'flex',
+              alignItems:   'center',
+              justifyContent: 'center',
+              flexShrink:   0,
+            }}
+          >×</button>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <ProgressBar pct={pct} />
+        <span style={{ fontSize: 10, color: pct >= 100 ? 'var(--ana-success, #4ade80)' : 'var(--ana-accent)', fontWeight: 600, minWidth: 32, textAlign: 'right' }}>
+          {pct}%
+        </span>
+      </div>
+
+      {showInput && (
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center' }}>
+          <input
+            ref={inputRef}
+            type="number"
+            step="0.1"
+            min="0"
+            value={inputVal}
+            onChange={(e) => setInputVal(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleIncrementSubmit(); if (e.key === 'Escape') setShowInput(false) }}
+            placeholder={`Adicionar (${goal.unit})`}
+            style={{ ...inputStyle, width: 140 }}
+          />
+          <button
+            onClick={handleIncrementSubmit}
+            style={{
+              padding:      '4px 10px',
+              borderRadius: 4,
+              border:       '0.5px solid var(--ana-accent)',
+              background:   'var(--ana-accent)',
+              color:        'white',
+              fontSize:     11,
+              cursor:       'pointer',
+              fontFamily:   'var(--font-dm-sans), sans-serif',
+              whiteSpace:   'nowrap',
+            }}
+          >Guardar</button>
+          <button
+            onClick={() => { setShowInput(false); setInputVal('') }}
+            style={{
+              padding:      '4px 8px',
+              borderRadius: 4,
+              border:       '0.5px solid var(--ana-border)',
+              background:   'transparent',
+              color:        'var(--ana-muted)',
+              fontSize:     11,
+              cursor:       'pointer',
+              fontFamily:   'var(--font-dm-sans), sans-serif',
+            }}
+          >Cancelar</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function GoalsCard() {
+  const [goals,         setGoals]         = useState<Goal[]>([])
+  const [carregando,    setCarregando]    = useState(true)
+  const [showForm,      setShowForm]      = useState(false)
+  const [formName,      setFormName]      = useState('')
+  const [formTarget,    setFormTarget]    = useState('')
+  const [formUnit,      setFormUnit]      = useState('')
+  const [guardando,     setGuardando]     = useState(false)
+
+  useEffect(() => {
+    apiFetch.get<Goal[]>('/api/goals').then((res) => {
+      if (res.data) setGoals(res.data)
+    }).finally(() => setCarregando(false))
+  }, [])
+
+  async function handleDelete(id: string) {
+    await apiFetch.delete(`/api/goals/${id}`)
+    setGoals((prev) => prev.filter((g) => g.id !== id))
+  }
+
+  async function handleIncrement(id: string, newValue: number) {
+    const res = await apiFetch.patch<Goal>(`/api/goals/${id}`, { currentValue: newValue })
+    if (res.data) {
+      setGoals((prev) => prev.map((g) => g.id === id ? res.data! : g))
+    }
+  }
+
+  async function handleCreate() {
+    const target = parseFloat(formTarget.replace(',', '.'))
+    if (!formName.trim() || isNaN(target) || target <= 0 || !formUnit.trim()) return
+    setGuardando(true)
+    const res = await apiFetch.post<Goal>('/api/goals', {
+      name:        formName.trim(),
+      targetValue: target,
+      unit:        formUnit.trim(),
+    })
+    if (res.data) {
+      setGoals((prev) => [...prev, res.data!])
+      setFormName('')
+      setFormTarget('')
+      setFormUnit('')
+      setShowForm(false)
+    }
+    setGuardando(false)
+  }
+
+  return (
+    <div style={{ ...cardStyle, gridColumn: '1 / -1' }}>
+      <h3 style={{ ...cardTitleStyle, marginBottom: 8 }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ana-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="16 12 12 8 8 12" />
+          <line x1="12" y1="16" x2="12" y2="8" />
+        </svg>
+        Metas semanais
+        <span style={{ fontSize: 11, color: 'var(--ana-muted)', fontFamily: 'var(--font-dm-sans), sans-serif', fontWeight: 400, marginLeft: 'auto' }}>
+          Reiniciam toda a segunda-feira
+        </span>
+      </h3>
+
+      {carregando ? (
+        <span style={{ fontSize: 12, color: 'var(--ana-muted)' }}>A carregar metas...</span>
+      ) : goals.length === 0 && !showForm ? (
+        <p style={{ fontSize: 12, color: 'var(--ana-muted)', margin: '8px 0' }}>
+          Nenhuma meta definida. Adiciona a primeira abaixo.
+        </p>
+      ) : (
+        <div>
+          {goals.map((g) => (
+            <GoalItem
+              key={g.id}
+              goal={g}
+              onDelete={handleDelete}
+              onIncrement={handleIncrement}
+            />
+          ))}
+        </div>
+      )}
+
+      {showForm && (
+        <div style={{
+          marginTop:    12,
+          padding:      12,
+          background:   'var(--ana-bg)',
+          borderRadius: 'var(--ana-radius)',
+          border:       '0.5px solid var(--ana-border)',
+        }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, marginBottom: 8 }}>
+            <input
+              type="text"
+              placeholder="Nome (ex: Horas de foco por semana)"
+              value={formName}
+              onChange={(e) => setFormName(e.target.value)}
+              style={inputStyle}
+            />
+            <input
+              type="number"
+              placeholder="Alvo"
+              step="0.1"
+              min="0"
+              value={formTarget}
+              onChange={(e) => setFormTarget(e.target.value)}
+              style={{ ...inputStyle, width: 80 }}
+            />
+            <input
+              type="text"
+              placeholder="Unidade"
+              value={formUnit}
+              onChange={(e) => setFormUnit(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
+              style={{ ...inputStyle, width: 90 }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              onClick={handleCreate}
+              disabled={guardando}
+              style={{
+                padding:      '4px 14px',
+                borderRadius: 4,
+                border:       '0.5px solid var(--ana-accent)',
+                background:   'var(--ana-accent)',
+                color:        'white',
+                fontSize:     11,
+                cursor:       'pointer',
+                fontFamily:   'var(--font-dm-sans), sans-serif',
+                opacity:      guardando ? 0.6 : 1,
+              }}
+            >{guardando ? 'A guardar...' : 'Guardar'}</button>
+            <button
+              onClick={() => { setShowForm(false); setFormName(''); setFormTarget(''); setFormUnit('') }}
+              style={{
+                padding:      '4px 10px',
+                borderRadius: 4,
+                border:       '0.5px solid var(--ana-border)',
+                background:   'transparent',
+                color:        'var(--ana-muted)',
+                fontSize:     11,
+                cursor:       'pointer',
+                fontFamily:   'var(--font-dm-sans), sans-serif',
+              }}
+            >Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {!showForm && (
+        <button
+          onClick={() => setShowForm(true)}
+          style={{
+            marginTop:    10,
+            padding:      '5px 12px',
+            borderRadius: 4,
+            border:       '0.5px solid var(--ana-border)',
+            background:   'transparent',
+            color:        'var(--ana-accent)',
+            fontSize:     11,
+            cursor:       'pointer',
+            fontFamily:   'var(--font-dm-sans), sans-serif',
+            display:      'flex',
+            alignItems:   'center',
+            gap:          4,
+          }}
+        >
+          <span style={{ fontSize: 14, lineHeight: 1 }}>+</span> Adicionar meta
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function MetasPage() {
   const [prefs, setPrefs]         = useState<Prefs>(PREFS_DEFAULT)
   const [carregando, setCarregando] = useState(true)
@@ -217,6 +584,9 @@ export default function MetasPage() {
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+
+          {/* Card: Metas semanais — full width */}
+          <GoalsCard />
 
           {/* Card: Preferências de horário */}
           <div style={cardStyle}>
