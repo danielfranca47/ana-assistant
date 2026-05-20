@@ -1,6 +1,25 @@
 'use client'
 
-import { useState, useEffect, useCallback, type FormEvent } from 'react'
+import { useState, useEffect, useCallback, type FormEvent, type CSSProperties } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+  type DragOverEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useTasks } from '@/hooks/useTasks'
 import { tasksApi } from '@/services/tasks'
 import type { Task, TaskPriority, TaskStatus, UpdateTaskInput } from '@/types/task'
@@ -55,6 +74,27 @@ function proximaHoraLivre(tarefasHoje: Task[]): string {
     hora++
   }
   return '23:00'
+}
+
+function minutosParaHora(min: number): string {
+  const h = Math.floor(min / 60) % 24
+  const m = min % 60
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+}
+
+function recalcularHorarios(tasks: Task[]): Array<{ id: string; time: string | null }> {
+  const anchorIdx = tasks.findIndex((t) => t.time !== null)
+  if (anchorIdx === -1) return tasks.map((t) => ({ id: t.id, time: t.time }))
+
+  const [h, m] = tasks[anchorIdx].time!.split(':').map(Number)
+  let minutos = h * 60 + m
+
+  return tasks.map((task, i) => {
+    if (i < anchorIdx) return { id: task.id, time: task.time }
+    const novaHora = minutosParaHora(minutos)
+    minutos += task.duration ?? 0
+    return { id: task.id, time: novaHora }
+  })
 }
 
 const PRIORIDADE_COR: Record<TaskPriority, string> = {
@@ -116,9 +156,9 @@ const FORM_INICIAL: FormState = {
 function aplicarFiltros(tasks: Task[], filtros: Set<Filtro>): Task[] {
   if (filtros.has('todas') || filtros.size === 0) return tasks
 
-  const statusFiltros = Array.from(filtros).filter((f): f is TaskStatus =>
-    ['pending', 'done'].includes(f),
-  )
+  const statusFiltros = Array.from(filtros).filter((f) =>
+    (['pending', 'done'] as string[]).includes(f),
+  ) as TaskStatus[]
   const prioridadeFiltros = Array.from(filtros).filter((f) => f === 'alta')
   const categoriaFiltros = Array.from(filtros).filter((f) =>
     ['trabalho', 'pessoal'].includes(f),
@@ -136,6 +176,163 @@ function aplicarFiltros(tasks: Task[], filtros: Set<Filtro>): Task[] {
   })
 }
 
+// ---------------------------------------------------------------------------
+// SortableTaskItem
+// ---------------------------------------------------------------------------
+
+interface SortableTaskItemProps {
+  task: Task
+  dragOverId: string | null
+  expandidos: Set<string>
+  onToggleConcluido: (task: Task) => void
+  onToggleExpandido: (id: string) => void
+  onToggleStatus: (task: Task) => void
+  onEdit: (task: Task, e: React.MouseEvent) => void
+  onDelete: (id: string) => void
+}
+
+function SortableTaskItem({
+  task,
+  dragOverId,
+  expandidos,
+  onToggleConcluido,
+  onToggleExpandido,
+  onToggleStatus,
+  onEdit,
+  onDelete,
+}: SortableTaskItemProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: task.id })
+
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  const isDropTarget = dragOverId === task.id && !isDragging
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`group relative bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-start gap-3 ${
+        isDragging ? 'opacity-50' : ''
+      }`}
+    >
+      {/* Indicador de inserção */}
+      {isDropTarget && (
+        <span
+          className="absolute inset-x-0 top-0 h-0.5 rounded-full"
+          style={{ background: 'var(--ana-accent)' }}
+        />
+      )}
+
+      {/* Handle de arrasto */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="shrink-0 mt-0.5 text-gray-300 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity select-none"
+        aria-label="Arrastar para reordenar"
+        tabIndex={-1}
+      >
+        ⠿
+      </button>
+
+      {/* Checkbox de conclusão */}
+      <button
+        onClick={() => onToggleConcluido(task)}
+        className={`shrink-0 mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+          task.status === 'done'
+            ? 'bg-gray-900 border-gray-900 text-white'
+            : 'border-gray-300 hover:border-gray-500'
+        }`}
+        aria-label={task.status === 'done' ? 'Marcar como pendente' : 'Marcar como concluída'}
+      >
+        {task.status === 'done' && (
+          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+            <path
+              d="M1 4L3.5 6.5L9 1"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+      </button>
+
+      {/* Horário */}
+      <div className="w-12 shrink-0 text-xs text-gray-400 pt-0.5">
+        {task.time ?? '—'}
+      </div>
+
+      {/* Conteúdo */}
+      <div className="flex-1 min-w-0">
+        <p
+          className={`text-sm font-medium text-gray-900 truncate ${
+            task.status === 'done' ? 'line-through text-gray-400' : ''
+          }`}
+        >
+          {task.name}
+        </p>
+
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {task.duration && (
+            <span className="text-xs text-gray-400">{task.duration}min</span>
+          )}
+          {task.category && (
+            <span className="text-xs text-gray-400">{task.category}</span>
+          )}
+          <span className={`text-xs px-2 py-0.5 rounded-full ${PRIORIDADE_COR[task.priority]}`}>
+            {task.priority}
+          </span>
+          {task.description && (
+            <button
+              onClick={() => onToggleExpandido(task.id)}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              aria-label={expandidos.has(task.id) ? 'Recolher descrição' : 'Ver descrição'}
+            >
+              {expandidos.has(task.id) ? '▴' : '▾'}
+            </button>
+          )}
+        </div>
+
+        {expandidos.has(task.id) && task.description && (
+          <p className="text-xs text-gray-500 mt-2 leading-relaxed">{task.description}</p>
+        )}
+      </div>
+
+      {/* Status + acções */}
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={(e) => onEdit(task, e)}
+          className="text-gray-300 hover:text-gray-600 transition-colors text-sm"
+          aria-label="Editar tarefa"
+        >
+          ✎
+        </button>
+        <button
+          onClick={() => onToggleStatus(task)}
+          className={`text-xs px-2 py-1 rounded-full transition-colors ${STATUS_COR[task.status]}`}
+        >
+          {STATUS_LABEL[task.status]}
+        </button>
+        <button
+          onClick={() => onDelete(task.id)}
+          className="text-gray-300 hover:text-red-400 transition-colors text-sm"
+          aria-label="Deletar tarefa"
+        >
+          ✕
+        </button>
+      </div>
+    </li>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// RotinaPage
+// ---------------------------------------------------------------------------
+
 export default function RotinaPage() {
   const [dataSelecionada, setDataSelecionada] = useState(hoje())
   const [mostrarForm, setMostrarForm] = useState(false)
@@ -144,15 +341,25 @@ export default function RotinaPage() {
   const [editTarget, setEditTarget] = useState<{ item: Task; position: { x: number; y: number } } | null>(null)
 
   // Filtros
-  const [filtrosAtivos, setFiltrosAtivos] = useState<Set<Filtro>>(new Set(['todas']))
+  const [filtrosAtivos, setFiltrosAtivos] = useState<Set<Filtro>>(new Set<Filtro>(['todas']))
 
   // Tarefas em atraso
   const [tarefasAtrasadas, setTarefasAtrasadas] = useState<Task[]>([])
   const [secaoAtrasadasAberta, setSecaoAtrasadasAberta] = useState(true)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
+  // Drag & drop
+  const [tarefasOrdenadas, setTarefasOrdenadas] = useState<Task[]>([])
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+
   const { tasks, isLoading, error, isMutating, createTask, updateTask, deleteTask } =
     useTasks(dataSelecionada)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
 
   const carregarAtrasadas = useCallback(async () => {
     await tasksApi.marcarAtrasadas()
@@ -166,16 +373,25 @@ export default function RotinaPage() {
     return () => clearInterval(intervalo)
   }, [carregarAtrasadas])
 
+  const tarefasFiltradas = aplicarFiltros(tasks, filtrosAtivos)
+
+  // Sincroniza lista ordenada com a lista filtrada (excepto durante arrasto)
+  useEffect(() => {
+    if (!activeId) {
+      setTarefasOrdenadas(tarefasFiltradas)
+    }
+  }, [tarefasFiltradas, activeId])
+
   function toggleFiltro(filtro: Filtro) {
     setFiltrosAtivos((prev) => {
-      const next = new Set(prev)
+      const next = new Set<Filtro>(prev)
       if (filtro === 'todas') {
-        return new Set(['todas'])
+        return new Set<Filtro>(['todas'])
       }
       next.delete('todas')
       if (next.has(filtro)) {
         next.delete(filtro)
-        if (next.size === 0) return new Set(['todas'])
+        if (next.size === 0) return new Set<Filtro>(['todas'])
       } else {
         next.add(filtro)
       }
@@ -252,7 +468,49 @@ export default function RotinaPage() {
     setConfirmDeleteId(null)
   }
 
-  const tarefasFiltradas = aplicarFiltros(tasks, filtrosAtivos)
+  // Drag handlers
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(String(event.active.id))
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    setDragOverId(event.over ? String(event.over.id) : null)
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    setActiveId(null)
+    setDragOverId(null)
+
+    if (!over || active.id === over.id) return
+
+    const oldIdx = tarefasOrdenadas.findIndex((t) => t.id === String(active.id))
+    const newIdx = tarefasOrdenadas.findIndex((t) => t.id === String(over.id))
+    if (oldIdx === -1 || newIdx === -1) return
+
+    const novaOrdem = arrayMove(tarefasOrdenadas, oldIdx, newIdx)
+    const horarios = recalcularHorarios(novaOrdem)
+
+    // Actualiza estado local com nova ordem e horários calculados
+    const novaOrdemComHoras = novaOrdem.map((task) => {
+      const h = horarios.find((x) => x.id === task.id)
+      return h ? { ...task, time: h.time } : task
+    })
+    setTarefasOrdenadas(novaOrdemComHoras)
+
+    // Persiste apenas tarefas cujo time efectivamente mudou
+    const alteradas = horarios.filter(({ id, time }) => {
+      const original = tarefasOrdenadas.find((t) => t.id === id)
+      return original && original.time !== time
+    })
+
+    if (alteradas.length > 0) {
+      await Promise.all(
+        alteradas.map(({ id, time }) => updateTask(id, { time: time ?? undefined })),
+      )
+    }
+  }
 
   return (
     <div className="overflow-y-auto h-full" style={{ background: 'var(--ana-bg)' }}>
@@ -373,7 +631,7 @@ export default function RotinaPage() {
             <h1 className="text-xl font-semibold text-gray-900">Rotina</h1>
             {!isLoading && tasks.length > 0 && (
               <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-                {tarefasFiltradas.length} {tarefasFiltradas.length === 1 ? 'tarefa' : 'tarefas'}
+                {tarefasOrdenadas.length} {tarefasOrdenadas.length === 1 ? 'tarefa' : 'tarefas'}
               </span>
             )}
           </div>
@@ -499,7 +757,7 @@ export default function RotinaPage() {
         )}
 
         {/* Lista vazia */}
-        {!isLoading && error === null && tarefasFiltradas.length === 0 && (
+        {!isLoading && error === null && tarefasOrdenadas.length === 0 && (
           <div className="text-center py-12 text-gray-400 text-sm">
             {tasks.length === 0
               ? 'Nenhuma tarefa para este dia.'
@@ -507,108 +765,36 @@ export default function RotinaPage() {
           </div>
         )}
 
-        {/* Lista de tarefas */}
-        {!isLoading && error === null && tarefasFiltradas.length > 0 && (
-          <ul className="space-y-2">
-            {tarefasFiltradas.map((task) => (
-              <li
-                key={task.id}
-                className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-start gap-3"
-              >
-                {/* Checkbox de conclusão */}
-                <button
-                  onClick={() => toggleConcluido(task)}
-                  className={`shrink-0 mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                    task.status === 'done'
-                      ? 'bg-gray-900 border-gray-900 text-white'
-                      : 'border-gray-300 hover:border-gray-500'
-                  }`}
-                  aria-label={task.status === 'done' ? 'Marcar como pendente' : 'Marcar como concluída'}
-                >
-                  {task.status === 'done' && (
-                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                      <path
-                        d="M1 4L3.5 6.5L9 1"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  )}
-                </button>
-
-                {/* Horário */}
-                <div className="w-12 shrink-0 text-xs text-gray-400 pt-0.5">
-                  {task.time ?? '—'}
-                </div>
-
-                {/* Conteúdo */}
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={`text-sm font-medium text-gray-900 truncate ${
-                      task.status === 'done' ? 'line-through text-gray-400' : ''
-                    }`}
-                  >
-                    {task.name}
-                  </p>
-
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    {task.duration && (
-                      <span className="text-xs text-gray-400">{task.duration}min</span>
-                    )}
-                    {task.category && (
-                      <span className="text-xs text-gray-400">{task.category}</span>
-                    )}
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full ${PRIORIDADE_COR[task.priority]}`}
-                    >
-                      {task.priority}
-                    </span>
-                    {task.description && (
-                      <button
-                        onClick={() => toggleExpandido(task.id)}
-                        className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                        aria-label={expandidos.has(task.id) ? 'Recolher descrição' : 'Ver descrição'}
-                      >
-                        {expandidos.has(task.id) ? '▴' : '▾'}
-                      </button>
-                    )}
-                  </div>
-
-                  {expandidos.has(task.id) && task.description && (
-                    <p className="text-xs text-gray-500 mt-2 leading-relaxed">
-                      {task.description}
-                    </p>
-                  )}
-                </div>
-
-                {/* Status + acções */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={(e) => abrirEdit(task, e)}
-                    className="text-gray-300 hover:text-gray-600 transition-colors text-sm"
-                    aria-label="Editar tarefa"
-                  >
-                    ✎
-                  </button>
-                  <button
-                    onClick={() => toggleStatus(task)}
-                    className={`text-xs px-2 py-1 rounded-full transition-colors ${STATUS_COR[task.status]}`}
-                  >
-                    {STATUS_LABEL[task.status]}
-                  </button>
-                  <button
-                    onClick={() => void deleteTask(task.id)}
-                    className="text-gray-300 hover:text-red-400 transition-colors text-sm"
-                    aria-label="Deletar tarefa"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+        {/* Lista de tarefas com drag & drop */}
+        {!isLoading && error === null && tarefasOrdenadas.length > 0 && (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={tarefasOrdenadas.map((t) => t.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul className="space-y-2">
+                {tarefasOrdenadas.map((task) => (
+                  <SortableTaskItem
+                    key={task.id}
+                    task={task}
+                    dragOverId={dragOverId}
+                    expandidos={expandidos}
+                    onToggleConcluido={toggleConcluido}
+                    onToggleExpandido={toggleExpandido}
+                    onToggleStatus={toggleStatus}
+                    onEdit={abrirEdit}
+                    onDelete={(id) => void deleteTask(id)}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 
