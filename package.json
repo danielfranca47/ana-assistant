@@ -48,6 +48,7 @@
     "typescript": "^5"
   },
   "build": {
+    "asar": false,
     "appId": "com.ana.assistant",
     "productName": "Ana Assistant",
     "directories": {
