@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum TaskPriority {
+  alta
+  media
+  baixa
+}
+
+enum TaskStatus {
+  pending
+  done
+  current
+  late
+}
+
+
+model Conversation {
+  id        String    @id @default(cuid())
+  title     String    @default("Nova conversa")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  time        String?      // HH:MM — null = tarefa sem horário fixo
+  duration    Int?         // duração em minutos
+  priority    TaskPriority @default(media)
+  category    String?
+  status      TaskStatus   @default(pending)
+  date        DateTime
+  parentId    String?      // ID do grupo da série; preenchido = tarefa recorrente
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([date])
+  @@index([parentId])
+}
+
+enum EventCategory {
+  work
+  meet
+  pers
+  break
+}
+
+model Event {
+  id             String        @id @default(cuid())
+  name           String
+  date           DateTime
+  startTime      String?       // HH:MM
+  endTime        String?       // HH:MM
+  category       EventCategory @default(pers)
+  notes          String?
+  recurrence     String?       // null | "daily" | "weekly" | "weekdays" | "custom"
+  recurrenceDays String?       // JSON ex: "[1,3,5]" (0=Dom…6=Sáb)
+  recurrenceEnd  DateTime?     // data de fim da série
+  parentId       String?       // ID do evento-pai da série
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([date])
+  @@index([parentId])
+}
+
+model Goal {
+  id            String   @id @default(cuid())
+  name          String
+  targetValue   Float
+  currentValue  Float    @default(0)
+  unit          String
+  weekStartDate DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model DailyReport {
+  id         String   @id @default(cuid())
+  date       DateTime @unique
+  summary    String?
+  aiAnalysis String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model UserPreferences {
+  id            String   @id @default(cuid())
+  workStart     String   @default("08:00")
+  workEnd       String   @default("18:00")
+  lunchStart    String   @default("12:00")
+  lunchEnd      String   @default("13:00")
+  focusTime     String   @default("morning")
+  breakInterval Int      @default(60)
+  offDays       String   @default("6,0")
+  goalsJson     String   @default("[]")
+  updatedAt     DateTime @updatedAt
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  priority    String   @default("media")  // alta | media | baixa
+  activities  String   @default("[]")     // JSON: [{name, frequency}]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Objective {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  horizon     String                       // "1m" | "3m" | "6m" | "1y" | "5y"
+  status      String   @default("active") // active | completed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
