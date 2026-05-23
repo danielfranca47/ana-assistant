@@ -2,12 +2,16 @@
   "name": "app-nextjs",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate && prisma db push"
+    "postinstall": "prisma generate && prisma db push",
+    "electron:dev": "concurrently \"npm run dev\" \"electron .\"",
+    "electron:build": "next build && electron-builder",
+    "electron:dist": "next build && electron-builder --publish=never"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
@@ -17,6 +21,7 @@
     "@libsql/client": "^0.17.3",
     "@prisma/adapter-libsql": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "electron-store": "^11.0.2",
     "multer": "^2.1.1",
     "next": "14.2.35",
     "openai": "^6.38.0",
@@ -28,14 +33,50 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@types/multer": "^2.1.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "concurrently": "^9.2.1",
+    "electron": "^42.2.0",
+    "electron-builder": "^26.8.1",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.ana.assistant",
+    "productName": "Ana Assistant",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      ".next/**/*",
+      "public/**/*",
+      "prisma/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "public/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "public/icon.ico",
+      "installerHeaderIcon": "public/icon.ico"
+    }
   }
 }
