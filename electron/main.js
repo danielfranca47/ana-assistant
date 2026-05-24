@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron')
+const { app, BrowserWindow, dialog, Menu, shell } = require('electron')
 const { spawn } = require('child_process')
 const { existsSync } = require('fs')
 const path = require('path')
@@ -14,6 +14,7 @@ const appRoot = isDev
 
 let serverProcess = null
 let mainWindow = null
+let splashWindow = null
 let store = null
 
 // electron-store v11 é ESM-only: usar dynamic import
@@ -35,19 +36,6 @@ function setServerEnv() {
 async function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'ana.db')
   if (existsSync(dbPath)) return
-
-  // Mostrar ecrã de loading enquanto o schema é criado
-  mainWindow.loadURL(
-    'data:text/html,' +
-    encodeURIComponent(`<!DOCTYPE html>
-<html style="margin:0">
-  <body style="background:#0a0a0a;color:#e5e5e5;display:flex;
-               align-items:center;justify-content:center;
-               height:100vh;font-family:system-ui;margin:0">
-    <p style="opacity:.7">A preparar a Ana pela primeira vez…</p>
-  </body>
-</html>`)
-  )
 
   const prismaBin = [
     path.join(appRoot, 'node_modules', 'prisma', 'build', 'index.js'),
@@ -120,6 +108,20 @@ function waitForServer() {
   })
 }
 
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 380,
+    height: 260,
+    frame: false,
+    resizable: false,
+    center: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  })
+  splashWindow.loadFile(path.join(__dirname, 'splash.html'))
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -128,6 +130,7 @@ function createWindow() {
     minHeight: 600,
     title: 'Ana — Assistente Pessoal',
     icon: path.join(appRoot, 'public', 'icon.png'),
+    show: false, // mostrar apenas após ready-to-show
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -142,9 +145,70 @@ function createWindow() {
   })
 }
 
+function buildMenu() {
+  const version = require(path.join(appRoot, 'package.json')).version ?? '0.1.0'
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+      label: 'Ana Assistant',
+      submenu: [
+        {
+          label: 'Sobre a Ana',
+          click: () => dialog.showMessageBox(mainWindow, {
+            type: 'info',
+            title: 'Sobre a Ana',
+            message: `Ana — Assistente Pessoal\nVersão ${version}`,
+            detail: 'Desenvolvida com Next.js + Electron.',
+            buttons: ['Fechar'],
+          }),
+        },
+        { type: 'separator' },
+        {
+          label: 'Configurações',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => mainWindow?.loadURL(`http://localhost:${PORT}/setup`),
+        },
+        { type: 'separator' },
+        {
+          label: 'Verificar actualizações',
+          click: () => dialog.showMessageBox(mainWindow, {
+            type: 'info',
+            title: 'Actualizações',
+            message: 'Sem actualizações disponíveis.',
+            detail: `Versão actual: ${version}`,
+            buttons: ['Fechar'],
+          }),
+        },
+        { type: 'separator' },
+        { label: 'Sair', role: 'quit', accelerator: 'CmdOrCtrl+Q' },
+      ],
+    },
+    {
+      label: 'Editar',
+      submenu: [
+        { label: 'Copiar',           role: 'copy',      accelerator: 'CmdOrCtrl+C' },
+        { label: 'Colar',            role: 'paste',     accelerator: 'CmdOrCtrl+V' },
+        { label: 'Seleccionar tudo', role: 'selectAll', accelerator: 'CmdOrCtrl+A' },
+      ],
+    },
+    {
+      label: 'Ajuda',
+      submenu: [
+        {
+          label: 'Documentação',
+          click: () => shell.openExternal('https://github.com/SEU-USUARIO/ana-assistant'),
+        },
+      ],
+    },
+  ]))
+}
+
 app.whenReady().then(async () => {
+  createSplashWindow() // feedback imediato ao utilizador
+
   await createStore()
   setServerEnv()
+  buildMenu()
   createWindow()
 
   try {
@@ -160,6 +224,13 @@ app.whenReady().then(async () => {
   try {
     await waitForServer()
     mainWindow.loadURL(`http://localhost:${PORT}`)
+    mainWindow.once('ready-to-show', () => {
+      if (splashWindow && !splashWindow.isDestroyed()) {
+        splashWindow.destroy()
+        splashWindow = null
+      }
+      mainWindow.show()
+    })
   } catch (e) {
     dialog.showErrorBox('Erro ao iniciar a Ana', e.message)
     app.quit()
