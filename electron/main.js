@@ -50,7 +50,7 @@ async function initDatabase() {
     const proc = spawn(
       process.execPath,
       [prismaBin, 'db', 'push', '--skip-generate', '--schema', schemaPath],
-      { cwd: appRoot, env: { ...process.env }, stdio: 'inherit' }
+      { cwd: appRoot, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: 'inherit' }
     )
     proc.on('close', code =>
       code === 0
@@ -69,7 +69,7 @@ function startNextServer() {
     [nextBin, 'start', '-p', String(PORT)],
     {
       cwd: appRoot,
-      env: { ...process.env, NODE_ENV: 'production' },
+      env: { ...process.env, NODE_ENV: 'production', ELECTRON_RUN_AS_NODE: '1' },
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     }
   )
