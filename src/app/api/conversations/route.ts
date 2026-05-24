@@ -1,4 +1,3 @@
-import { type NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ok, err } from '@/lib/api'
 
@@ -15,7 +14,7 @@ export async function GET() {
   }
 }
 
-export async function POST(_request: NextRequest) {
+export async function POST() {
   try {
     const conversa = await prisma.conversation.create({
       data: {},

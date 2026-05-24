@@ -49,7 +49,7 @@ async function initDatabase() {
   await new Promise((resolve, reject) => {
     const proc = spawn(
       process.execPath,
-      [prismaBin, 'db', 'push', '--skip-generate', '--schema', schemaPath],
+      [prismaBin, 'db', 'push', '--schema', schemaPath],
       { cwd: appRoot, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: 'inherit' }
     )
     proc.on('close', code =>

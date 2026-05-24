@@ -1,8 +1,7 @@
-import { type NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ok, err, parseUTCDate } from '@/lib/api'
 
-export async function POST(_request: NextRequest) {
+export async function POST() {
   try {
     const hojeStr = new Date().toISOString().split('T')[0]
     const inicioHoje = parseUTCDate(hojeStr)
