@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate && prisma db push",
-    "electron:dev": "concurrently \"npm run dev\" \"electron .\"",
+    "electron:dev": "next build && electron .",
     "electron:build": "next build && electron-builder",
     "electron:dist": "next build && electron-builder --publish=never"
   },
