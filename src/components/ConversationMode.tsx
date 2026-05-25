@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import * as anaService from '@/services/ana'
 import type { MensagemHistorico } from '@/services/ana'
+import { speak } from '@/lib/speech'
 
 type Phase = 'idle' | 'ready' | 'listening' | 'processing' | 'speaking'
 
@@ -232,23 +233,11 @@ export default function ConversationMode({ onClose, conversationId }: Props) {
           syncPhase('speaking')
 
           // TTS — microfone fica pausado enquanto Ana fala
-          window.speechSynthesis.cancel()
-          const utt = new SpeechSynthesisUtterance(reply)
-          utt.lang = 'pt-BR'
-          const vozes = window.speechSynthesis.getVoices()
-          const vozFem =
-            vozes.find(v => v.lang === 'pt-BR' && /maria|female|feminina/i.test(v.name)) ??
-            vozes.find(v => v.lang === 'pt-BR') ??
-            null
-          if (vozFem) utt.voice = vozFem
-          utt.onend = () => {
-            if (isActiveRef.current) iniciarEscuta()
-          }
-          // Fallback caso onend não dispare (bug em alguns navegadores)
-          utt.onerror = () => {
-            if (isActiveRef.current) iniciarEscuta()
-          }
-          window.speechSynthesis.speak(utt)
+          speak(reply, {
+            onend: () => { if (isActiveRef.current) iniciarEscuta() },
+            // Fallback caso onend não dispare (bug em alguns navegadores)
+            onerror: () => { if (isActiveRef.current) iniciarEscuta() },
+          })
         } catch {
           if (!isActiveRef.current) return
           if (mountedRef.current) setErro('Erro ao processar. Retomando em 2s...')

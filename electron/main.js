@@ -233,7 +233,7 @@ function buildMenu() {
         {
           label: 'Configurações',
           accelerator: 'CmdOrCtrl+,',
-          click: () => mainWindow?.loadURL(`http://localhost:${PORT}/setup`),
+          click: () => mainWindow?.loadURL(`http://localhost:${PORT}/settings`),
         },
         { type: 'separator' },
         {
@@ -263,7 +263,7 @@ function buildMenu() {
       submenu: [
         {
           label: 'Documentação',
-          click: () => shell.openExternal('https://github.com/SEU-USUARIO/ana-assistant'),
+          click: () => shell.openExternal('https://github.com/danielfranca47/ana-assistant'),
         },
       ],
     },

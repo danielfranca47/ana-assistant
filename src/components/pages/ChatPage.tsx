@@ -6,6 +6,7 @@ import * as anaService from '@/services/ana'
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder'
 import ConversationMode from '@/components/ConversationMode'
 import { apiFetch } from '@/lib/apiFetch'
+import { speak } from '@/lib/speech'
 import RegistrarContextoPreview, { type PreviewInput } from '@/components/chat/RegistrarContextoPreview'
 
 interface Mensagem {
@@ -28,25 +29,6 @@ function dataRelativa(dateStr: string): string {
   return `há ${dias} dias`
 }
 
-function getVozFeminina(): SpeechSynthesisVoice | null {
-  const vozes = window.speechSynthesis.getVoices()
-  return (
-    vozes.find(v => v.lang === 'pt-BR' && /maria|female|feminina/i.test(v.name)) ??
-    vozes.find(v => v.lang === 'pt-BR') ??
-    null
-  )
-}
-
-function falarTexto(texto: string) {
-  if (!('speechSynthesis' in window)) return
-  window.speechSynthesis.cancel()
-  const utterance = new SpeechSynthesisUtterance(texto)
-  utterance.lang = 'pt-BR'
-  utterance.rate = 1
-  const voz = getVozFeminina()
-  if (voz) utterance.voice = voz
-  window.speechSynthesis.speak(utterance)
-}
 
 export default function ChatPage() {
   const [historico, setHistorico] = useState<Mensagem[]>([])
@@ -157,7 +139,7 @@ export default function ChatPage() {
       setConversationId(convId)
       localStorage.setItem(STORAGE_KEY, convId)
       setAcaoPendente(pendingAction ?? null)
-      if (!pendingAction) falarTexto(reply)
+      if (!pendingAction) speak(reply)
       await carregarListaConversas()
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível obter resposta da Ana. Tente novamente.')
@@ -178,7 +160,7 @@ export default function ChatPage() {
       })
       const msg = result.data?.message ?? 'Acção executada com sucesso.'
       setHistorico(h => [...h, { role: 'assistant', content: msg }])
-      falarTexto(msg)
+      speak(msg)
       await carregarListaConversas()
     } catch {
       setErro('Erro ao executar a acção. Tente novamente.')

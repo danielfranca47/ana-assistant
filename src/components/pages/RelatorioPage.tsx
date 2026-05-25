@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { apiFetch } from '@/lib/apiFetch'
+import { speak } from '@/lib/speech'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRec = any
@@ -21,25 +22,6 @@ function getSpeechRecognitionClass(): (new () => AnyRec) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
 }
 
-function getVozFeminina(): SpeechSynthesisVoice | null {
-  const vozes = window.speechSynthesis.getVoices()
-  return (
-    vozes.find(v => v.lang === 'pt-BR' && /maria|female|feminina/i.test(v.name)) ??
-    vozes.find(v => v.lang === 'pt-BR') ??
-    null
-  )
-}
-
-function lerEmVoz(texto: string) {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return
-  window.speechSynthesis.cancel()
-  const utterance = new SpeechSynthesisUtterance(texto)
-  utterance.lang = 'pt-BR'
-  utterance.rate = 1
-  const voz = getVozFeminina()
-  if (voz) utterance.voice = voz
-  window.speechSynthesis.speak(utterance)
-}
 
 function formatarData(isoDate: string): string {
   const d = new Date(isoDate)
@@ -120,7 +102,7 @@ export default function RelatorioPage() {
       const sugestoes = res.data?.suggestions ?? ''
       setResultado(sugestoes)
       setGuardado(true)
-      lerEmVoz(sugestoes)
+      speak(sugestoes)
       // Recarrega o histórico para incluir o relatório recém guardado
       setHistorico([])
       if (historicoAberto) carregarHistorico()
@@ -324,7 +306,7 @@ export default function RelatorioPage() {
                   Sugestões da Ana
                 </span>
                 <button
-                  onClick={() => lerEmVoz(resultado)}
+                  onClick={() => speak(resultado)}
                   title="Ler em voz alta"
                   style={{
                     display: 'flex',
