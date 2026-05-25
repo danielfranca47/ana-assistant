@@ -1,11 +1,19 @@
 const { app, BrowserWindow, dialog, Menu, shell } = require('electron')
 const { spawn } = require('child_process')
-const { existsSync } = require('fs')
+const { existsSync, appendFileSync } = require('fs')
 const path = require('path')
 const http = require('http')
 
 const PORT = 3333
 const isDev = !app.isPackaged
+
+function log(msg) {
+  try {
+    const logPath = path.join(app.getPath('userData'), 'startup.log')
+    appendFileSync(logPath, `${new Date().toISOString()} | ${msg}\n`)
+  } catch (_) {}
+  console.log('[ana]', msg)
+}
 
 // Raiz da app: em dev é a pasta do projecto, em produção é resources/
 const appRoot = isDev
@@ -103,22 +111,29 @@ function startNextServer() {
 
 function waitForServer() {
   return new Promise((resolve, reject) => {
-    const deadline = Date.now() + 30_000
+    const deadline = Date.now() + 90_000  // 90s total
+    let attempts = 0
     const attempt = () => {
+      attempts++
+      log(`waitForServer tentativa ${attempts}`)
       const req = http.get(`http://localhost:${PORT}`, res => {
         res.resume()
+        log('waitForServer: servidor respondeu')
         resolve()
+      })
+      req.setTimeout(4000, () => {
+        req.destroy()  // mata pedido pendurado; dispara 'error'
       })
       req.on('error', () => {
         if (Date.now() >= deadline) {
-          reject(new Error('O servidor Next.js não arrancou em 30 segundos.'))
+          reject(new Error('O servidor Next.js não arrancou em 90 segundos.'))
         } else {
-          setTimeout(attempt, 500)
+          setTimeout(attempt, 800)
         }
       })
       req.end()
     }
-    setTimeout(attempt, 500)
+    setTimeout(attempt, 1500)
   })
 }
 
@@ -217,35 +232,57 @@ function buildMenu() {
   ]))
 }
 
+function showMain() {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.destroy()
+    splashWindow = null
+  }
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+    mainWindow.show()
+  }
+}
+
 app.whenReady().then(async () => {
-  createSplashWindow() // feedback imediato ao utilizador
+  log('app ready')
+  createSplashWindow()
 
   await createStore()
   setServerEnv()
   buildMenu()
   createWindow()
+  log('janelas criadas')
 
   try {
     await initDatabase()
+    log('base de dados pronta')
   } catch (e) {
+    log(`ERRO initDatabase: ${e.message}`)
     dialog.showErrorBox('Erro ao inicializar base de dados', e.message)
     app.quit()
     return
   }
 
   startNextServer()
+  log('servidor Next.js iniciado')
 
   try {
     await waitForServer()
+    log('servidor a responder — a carregar URL')
     mainWindow.loadURL(`http://localhost:${PORT}`)
+
+    // Fallback: se ready-to-show não disparar em 10s, abre na mesma
+    const fallback = setTimeout(() => {
+      log('fallback ready-to-show activado')
+      showMain()
+    }, 10_000)
+
     mainWindow.once('ready-to-show', () => {
-      if (splashWindow && !splashWindow.isDestroyed()) {
-        splashWindow.destroy()
-        splashWindow = null
-      }
-      mainWindow.show()
+      clearTimeout(fallback)
+      log('ready-to-show disparou')
+      showMain()
     })
   } catch (e) {
+    log(`ERRO waitForServer: ${e.message}`)
     dialog.showErrorBox('Erro ao iniciar a Ana', e.message)
     app.quit()
   }
