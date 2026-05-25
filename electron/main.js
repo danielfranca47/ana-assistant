@@ -41,10 +41,10 @@ async function killProcessOnPort(port) {
   }
 }
 
-// Raiz da app: em dev é a pasta do projecto, em produção é resources/
+// Em produção o electron-builder coloca os ficheiros em resources/app/ (asar:false)
 const appRoot = isDev
   ? path.join(__dirname, '..')
-  : process.resourcesPath
+  : path.join(process.resourcesPath, 'app')
 
 let serverProcess = null
 let mainWindow = null
@@ -213,7 +213,7 @@ function createWindow() {
 }
 
 function buildMenu() {
-  const version = require(path.join(appRoot, 'package.json')).version ?? '0.1.0'
+  const version = app.getVersion()
 
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     {
