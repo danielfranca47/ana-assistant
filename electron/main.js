@@ -1,8 +1,9 @@
 const { app, BrowserWindow, dialog, Menu, shell } = require('electron')
-const { spawn } = require('child_process')
+const { spawn, execFileSync } = require('child_process')
 const { existsSync, appendFileSync } = require('fs')
 const path = require('path')
 const http = require('http')
+const net = require('net')
 
 const PORT = 3333
 const isDev = !app.isPackaged
@@ -13,6 +14,31 @@ function log(msg) {
     appendFileSync(logPath, `${new Date().toISOString()} | ${msg}\n`)
   } catch (_) {}
   console.log('[ana]', msg)
+}
+
+function isPortInUse(port) {
+  return new Promise(resolve => {
+    const srv = net.createServer()
+    srv.listen(port, '127.0.0.1', () => { srv.close(() => resolve(false)) })
+    srv.on('error', () => resolve(true))
+  })
+}
+
+async function killProcessOnPort(port) {
+  const inUse = await isPortInUse(port)
+  if (!inUse) return
+  log(`Porta ${port} ocupada — a tentar terminar processo anterior`)
+  try {
+    const out = execFileSync('netstat', ['-ano'], { encoding: 'utf8', timeout: 5000 })
+    const m = out.match(new RegExp(`:${port}\\s+.*LISTENING\\s+(\\d+)`))
+    if (m && m[1] && m[1] !== '0') {
+      execFileSync('taskkill', ['/F', '/PID', m[1]], { timeout: 5000 })
+      log(`PID ${m[1]} terminado`)
+      await new Promise(r => setTimeout(r, 500))
+    }
+  } catch (e) {
+    log(`killProcessOnPort erro: ${e.message}`)
+  }
 }
 
 // Raiz da app: em dev é a pasta do projecto, em produção é resources/
@@ -58,7 +84,7 @@ async function initDatabase() {
     return
   }
 
-  // Modo dev: correr prisma db push normalmente
+  // Modo dev: correr prisma db push de forma síncrona
   const prismaBin = [
     path.join(appRoot, 'node_modules', 'prisma', 'build', 'index.js'),
     path.join(appRoot, 'node_modules', 'prisma', 'dist', 'bin.js'),
@@ -67,20 +93,16 @@ async function initDatabase() {
   if (!prismaBin) throw new Error('Binário Prisma não encontrado em node_modules.')
 
   const schemaPath = path.join(appRoot, 'prisma', 'schema.prisma')
-
-  await new Promise((resolve, reject) => {
-    const proc = spawn(
-      process.execPath,
-      [prismaBin, 'db', 'push', '--schema', schemaPath],
-      { cwd: appRoot, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'pipe', 'pipe'] }
-    )
-    const timer = setTimeout(() => { proc.kill(); reject(new Error('prisma db push timeout (30s)')) }, 30_000)
-    proc.on('close', code => {
-      clearTimeout(timer)
-      code === 0 ? resolve() : reject(new Error(`prisma db push saiu com código ${code}`))
+  try {
+    execFileSync(process.execPath, [prismaBin, 'db', 'push', '--schema', schemaPath], {
+      cwd: appRoot,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      stdio: 'ignore',
+      timeout: 30_000,
     })
-    proc.on('error', e => { clearTimeout(timer); reject(e) })
-  })
+  } catch (e) {
+    log(`prisma db push falhou (ignorado): ${e.message}`)
+  }
 }
 
 function startNextServer() {
@@ -111,24 +133,25 @@ function startNextServer() {
 
 function waitForServer() {
   return new Promise((resolve, reject) => {
-    const deadline = Date.now() + 90_000  // 90s total
+    const deadline = Date.now() + 120_000  // 120s total
     let attempts = 0
     const attempt = () => {
       attempts++
-      log(`waitForServer tentativa ${attempts}`)
+      log(`A aguardar servidor na porta ${PORT}... (tentativa ${attempts})`)
       const req = http.get(`http://localhost:${PORT}`, res => {
         res.resume()
-        log('waitForServer: servidor respondeu')
+        log('Servidor respondeu — a abrir janela principal')
         resolve()
       })
-      req.setTimeout(4000, () => {
-        req.destroy()  // mata pedido pendurado; dispara 'error'
-      })
+      req.setTimeout(3000, () => req.destroy())
       req.on('error', () => {
         if (Date.now() >= deadline) {
-          reject(new Error('O servidor Next.js não arrancou em 90 segundos.'))
+          reject(new Error(
+            'A Ana não conseguiu arrancar. Por favor feche e abra novamente.\n' +
+            'Se o problema persistir, reinicie o computador.'
+          ))
         } else {
-          setTimeout(attempt, 800)
+          setTimeout(attempt, 1000)
         }
       })
       req.end()
@@ -243,18 +266,20 @@ function showMain() {
 }
 
 app.whenReady().then(async () => {
-  log('app ready')
-  createSplashWindow()
+  log('Electron iniciado')
 
+  await killProcessOnPort(PORT)
+
+  createSplashWindow()
   await createStore()
   setServerEnv()
   buildMenu()
   createWindow()
-  log('janelas criadas')
 
+  log('A verificar base de dados...')
   try {
     await initDatabase()
-    log('base de dados pronta')
+    log('Base de dados pronta')
   } catch (e) {
     log(`ERRO initDatabase: ${e.message}`)
     dialog.showErrorBox('Erro ao inicializar base de dados', e.message)
@@ -262,12 +287,11 @@ app.whenReady().then(async () => {
     return
   }
 
+  log('A lançar servidor Next.js...')
   startNextServer()
-  log('servidor Next.js iniciado')
 
   try {
     await waitForServer()
-    log('servidor a responder — a carregar URL')
     mainWindow.loadURL(`http://localhost:${PORT}`)
 
     // Fallback: se ready-to-show não disparar em 10s, abre na mesma
