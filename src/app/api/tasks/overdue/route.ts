@@ -1,8 +1,7 @@
-import { type NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ok, err, parseUTCDate } from '@/lib/api'
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   try {
     const hojeStr = new Date().toISOString().split('T')[0]
     const fimHoje = new Date(parseUTCDate(hojeStr))

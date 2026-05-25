@@ -3,6 +3,12 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
+declare global {
+  interface Window {
+    electronAPI?: { version: () => string }
+  }
+}
+
 interface StatusResult {
   configured: boolean
   hasAnthropic: boolean
@@ -16,6 +22,7 @@ export default function SetupPage() {
   const [openaiKey, setOpenaiKey] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(false)
+  const isElectron = typeof window !== 'undefined' && !!window.electronAPI
 
   useEffect(() => {
     fetch('/api/setup/status')
@@ -150,7 +157,8 @@ export default function SetupPage() {
 
         {/* Nota de privacidade */}
         <p className="mt-6 text-center text-xs text-[#8a9e93] leading-relaxed">
-          As suas chaves ficam guardadas apenas no seu servidor pessoal
+          As suas chaves ficam guardadas apenas{' '}
+          {isElectron ? 'no seu computador' : 'no seu servidor pessoal'}
           <br />e nunca são partilhadas.
         </p>
       </div>

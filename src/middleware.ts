@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const EXEMPT = ['/setup', '/api/setup', '/_next', '/favicon.ico']
+const EXEMPT = ['/setup', '/settings', '/api/setup', '/_next', '/favicon.ico']
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl

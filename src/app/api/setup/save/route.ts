@@ -47,19 +47,29 @@ export async function POST(request: NextRequest) {
   const { anthropicKey, openaiKey } = parsed.data
 
   try {
-    const envPath = path.join(process.cwd(), '.env')
-    let content = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : ''
-
-    content = updateEnvContent('ANTHROPIC_API_KEY', anthropicKey, content)
-    content = updateEnvContent('OPENAI_API_KEY', openaiKey, content)
-
-    writeFileSync(envPath, content, 'utf-8')
-
-    // Actualiza process.env na sessão corrente (sem restart)
-    process.env.ANTHROPIC_API_KEY = anthropicKey
-    process.env.OPENAI_API_KEY = openaiKey
+    if (process.env.IS_ELECTRON === 'true') {
+      // Em Electron: actualizar env da sessão e notificar o processo main via IPC
+      process.env.ANTHROPIC_API_KEY = anthropicKey
+      process.env.OPENAI_API_KEY    = openaiKey
+      // process.send existe porque o Next.js foi lançado com stdio IPC pelo Electron
+      if (typeof (process as NodeJS.Process & { send?: (...args: unknown[]) => void }).send === 'function') {
+        ;(process as NodeJS.Process & { send: (...args: unknown[]) => void }).send({
+          type: 'save-api-keys',
+          keys: { anthropic: anthropicKey, openai: openaiKey },
+        })
+      }
+    } else {
+      // Comportamento original: escrever no .env
+      const envPath = path.join(process.cwd(), '.env')
+      let content = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : ''
+      content = updateEnvContent('ANTHROPIC_API_KEY', anthropicKey, content)
+      content = updateEnvContent('OPENAI_API_KEY', openaiKey, content)
+      writeFileSync(envPath, content, 'utf-8')
+      process.env.ANTHROPIC_API_KEY = anthropicKey
+      process.env.OPENAI_API_KEY    = openaiKey
+    }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Erro ao escrever ficheiro .env'
+    const msg = e instanceof Error ? e.message : 'Erro ao guardar as chaves'
     return err(msg, 500)
   }
 
