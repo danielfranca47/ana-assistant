@@ -11,7 +11,7 @@
     "postinstall": "prisma generate && prisma db push",
     "electron:dev": "next build && electron .",
     "electron:build": "next build && electron-builder",
-    "electron:dist": "next build && electron-builder --publish=never"
+    "electron:dist": "next build && node -e \"try{require('fs').unlinkSync('prisma/ana.db')}catch(e){}\" && prisma db push && electron-builder --publish=never"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",

@@ -37,6 +37,20 @@ async function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'ana.db')
   if (existsSync(dbPath)) return
 
+  const { copyFileSync, mkdirSync } = require('fs')
+  mkdirSync(app.getPath('userData'), { recursive: true })
+
+  if (!isDev) {
+    // App instalada: copiar base de dados template do pacote para userData
+    const templateDb = path.join(appRoot, 'prisma', 'ana.db')
+    if (!existsSync(templateDb)) {
+      throw new Error(`Base de dados template não encontrada: ${templateDb}`)
+    }
+    copyFileSync(templateDb, dbPath)
+    return
+  }
+
+  // Modo dev: correr prisma db push normalmente
   const prismaBin = [
     path.join(appRoot, 'node_modules', 'prisma', 'build', 'index.js'),
     path.join(appRoot, 'node_modules', 'prisma', 'dist', 'bin.js'),
@@ -50,14 +64,14 @@ async function initDatabase() {
     const proc = spawn(
       process.execPath,
       [prismaBin, 'db', 'push', '--schema', schemaPath],
-      { cwd: appRoot, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: 'inherit' }
+      { cwd: appRoot, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'pipe', 'pipe'] }
     )
-    proc.on('close', code =>
-      code === 0
-        ? resolve()
-        : reject(new Error(`prisma db push saiu com código ${code}`))
-    )
-    proc.on('error', reject)
+    const timer = setTimeout(() => { proc.kill(); reject(new Error('prisma db push timeout (30s)')) }, 30_000)
+    proc.on('close', code => {
+      clearTimeout(timer)
+      code === 0 ? resolve() : reject(new Error(`prisma db push saiu com código ${code}`))
+    })
+    proc.on('error', e => { clearTimeout(timer); reject(e) })
   })
 }
 
