@@ -106,7 +106,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f0e8] px-4 py-8">
+    <div className="h-full overflow-y-auto bg-[#f5f0e8] px-4 py-8">
       <div className="w-full max-w-lg mx-auto space-y-6">
 
         {/* Cabeçalho */}
