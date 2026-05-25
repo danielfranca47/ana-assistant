@@ -78,6 +78,40 @@ Após concluir qualquer alteração de código, Claude DEVE obrigatoriamente:
 
 Esta instrução aplica-se a TODA e QUALQUER modificação de código, sem excepção.
 
+## Electron — Lições aprendidas
+
+### appRoot em produção com asar:false
+Quando o electron-builder empacota com `asar: false`, os ficheiros
+ficam em `resources/app/` e NÃO em `resources/` (process.resourcesPath).
+
+A variável appRoot deve ser sempre:
+  isDev
+    ? path.join(__dirname, '..')           // desenvolvimento
+    : path.join(process.resourcesPath, 'app') // produção
+
+NUNCA usar apenas `process.resourcesPath` como appRoot em produção.
+Isto afecta todos os path.join(appRoot, ...) — prisma, .next, public, etc.
+
+### app.getVersion() em vez de require('package.json')
+Para ler a versão da app no processo main do Electron, usar sempre:
+  app.getVersion()
+
+NUNCA usar:
+  require(path.join(appRoot, 'package.json')).version
+
+O require falha silenciosamente em produção se o caminho estiver errado,
+causando UnhandledPromiseRejection que cancela todo o arranque da app
+sem mostrar nenhum erro visível ao utilizador — apenas splash infinito.
+
+### Como diagnosticar loop infinito no Electron
+Se a app fica em splash infinito após instalação:
+1. Correr o .exe pelo terminal com:
+   & "caminho\Ana Assistant.exe" 2>&1 | Tee-Object -FilePath "C:\debug.txt"
+2. Verificar se aparecem logs [ana] no terminal
+3. Se o primeiro log não aparecer — o crash é antes do whenReady()
+4. Se aparecer "Electron iniciado" mas parar — problema no appRoot ou paths
+5. Procurar qualquer require() ou path.join(appRoot,...) fora do whenReady()
+
 ## Quando alterar este ficheiro
 Actualize o CLAUDE.md sempre que:
 - Adicionar uma nova feature ao roadmap
