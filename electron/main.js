@@ -106,17 +106,32 @@ async function initDatabase() {
 }
 
 function startNextServer() {
-  const nextBin = path.join(appRoot, 'node_modules', 'next', 'dist', 'bin', 'next')
-
-  serverProcess = spawn(
-    process.execPath,
-    [nextBin, 'start', '-p', String(PORT)],
-    {
-      cwd: appRoot,
-      env: { ...process.env, NODE_ENV: 'production', ELECTRON_RUN_AS_NODE: '1' },
-      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-    }
-  )
+  if (!isDev) {
+    // Produção: servidor autónomo gerado pelo Next.js standalone
+    const standaloneDir = path.join(appRoot, '.next', 'standalone')
+    const serverPath    = path.join(standaloneDir, 'server.js')
+    serverProcess = spawn(
+      process.execPath,
+      [serverPath],
+      {
+        cwd: standaloneDir,
+        env: { ...process.env, PORT: String(PORT), HOSTNAME: '127.0.0.1', NODE_ENV: 'production', ELECTRON_RUN_AS_NODE: '1' },
+        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+      }
+    )
+  } else {
+    // Dev: next start com a build normal
+    const nextBin = path.join(appRoot, 'node_modules', 'next', 'dist', 'bin', 'next')
+    serverProcess = spawn(
+      process.execPath,
+      [nextBin, 'start', '-p', String(PORT)],
+      {
+        cwd: appRoot,
+        env: { ...process.env, NODE_ENV: 'production', ELECTRON_RUN_AS_NODE: '1' },
+        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+      }
+    )
+  }
 
   serverProcess.stdout.on('data', d => process.stdout.write('[next] ' + d))
   serverProcess.stderr.on('data', d => process.stderr.write('[next] ' + d))
